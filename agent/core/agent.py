@@ -10,10 +10,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import sys
 import os
+import logging
 
 # Add parent directory to sys.path for shared imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from shared.models import Message, CommandResult, AgentInfo, Permission
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Agent:
     """
@@ -63,10 +68,14 @@ class Agent:
             Returns a CommandResult.
             """
             start_time = time.time()
+            command = ""
             
             try:
                 command = message.payload.get("command", "")
+                logger.info(f"Agent {self.info.id} executing command: {command}")
+                
                 if not self._validate_command(command):
+                    logger.warning(f"Agent {self.info.id} blocked dangerous command: {command}")
                     raise HTTPException(status_code=403, detail="Command not allowed")
                 
                 result = subprocess.run(
@@ -79,6 +88,8 @@ class Agent:
                 
                 execution_time = int((time.time() - start_time) * 1000)
                 
+                logger.info(f"Agent {self.info.id} command completed in {execution_time}ms, returncode: {result.returncode}")
+                
                 return CommandResult(
                     success=result.returncode == 0,
                     output=result.stdout,
@@ -90,6 +101,7 @@ class Agent:
             
             except subprocess.TimeoutExpired:
                 # Handle command timeout
+                logger.error(f"Agent {self.info.id} command timed out: {command}")
                 return CommandResult(
                     success=False,
                     error="Command timed out",
@@ -99,6 +111,7 @@ class Agent:
                 )
             except Exception as e:
                 # Handle other errors
+                logger.error(f"Agent {self.info.id} command failed with exception: {e}")
                 return CommandResult(
                     success=False,
                     error=str(e),
@@ -112,22 +125,33 @@ class Agent:
             """
             Return health status and system stats.
             """
-            return {
-                "status": "healthy",
-                "agent_info": self.info.dict(),
-                "system_stats": {
-                    "cpu_percent": psutil.cpu_percent(),
-                    "memory_percent": psutil.virtual_memory().percent,
-                    "disk_percent": psutil.disk_usage('/').percent if platform.system() != "Windows" else psutil.disk_usage('C:').percent
+            try:
+                return {
+                    "status": "healthy",
+                    "agent_info": self.info.model_dump(mode='json'),
+                    "system_stats": {
+                        "cpu_percent": psutil.cpu_percent(),
+                        "memory_percent": psutil.virtual_memory().percent,
+                        "disk_percent": psutil.disk_usage('/').percent if platform.system() != "Windows" else psutil.disk_usage('C:').percent
+                    }
                 }
-            }
+            except Exception as e:
+                logger.error(f"Health check failed: {e}")
+                return {
+                    "status": "unhealthy",
+                    "error": str(e)
+                }
         
         @self.app.get("/capabilities")
         async def get_capabilities():
             """
             Return agent info and capabilities.
             """
-            return self.info.model_dump(mode='json')
+            try:
+                return self.info.model_dump(mode='json')
+            except Exception as e:
+                logger.error(f"Capabilities endpoint failed: {e}")
+                raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
     def _validate_command(self, command: str) -> bool:
         """
@@ -143,5 +167,12 @@ if __name__ == "__main__":
     agent_name = sys.argv[1] if len(sys.argv) > 1 else "default"
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 5001
     
-    agent = Agent(agent_name, port=port)
-    uvicorn.run(agent.app, host="0.0.0.0", port=port)
+    logger.info(f"Starting agent '{agent_name}' on port {port}")
+    
+    try:
+        agent = Agent(agent_name, port=port)
+        logger.info(f"Agent {agent.info.id} initialized successfully")
+        uvicorn.run(agent.app, host="0.0.0.0", port=port)
+    except Exception as e:
+        logger.error(f"Failed to start agent: {e}")
+        raise
