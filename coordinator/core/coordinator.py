@@ -1,11 +1,15 @@
+from dotenv import load_dotenv
 import os
 import asyncio
 import aiohttp
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from openai import OpenAI
 from shared.models import AgentInfo, Message, MessageType, CommandResult
 import logging
+
+# Load environment variables
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +24,7 @@ class Coordinator:
         # OpenAI client for command parsing
         self.openai_client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=os.environ.get("OPENAI_API_KEY")
+            api_key=os.getenv('OPENAI_API_KEY')
         )
         # History of executed commands
         self.command_history: List[Dict] = {}
@@ -75,8 +79,8 @@ class Coordinator:
                 model="google/gemma-3n-e2b-it:free",
                 messages=[
                     {
-                        "role": "system",
-                        "content": """You are a command parser for a distributed system assistant. 
+                        "role": "user", 
+                        "content": f"""You are a command parser for a distributed system assistant. 
                         Parse user commands into structured format.
                         
                         Available capabilities:
@@ -84,24 +88,48 @@ class Coordinator:
                         - process_info: list processes, check status
                         - system_info: cpu, memory, disk usage
                         
-                        Respond with JSON:
-                        {
+                        Respond ONLY with valid JSON in this exact format:
+                        {{
                             "action": "command_type",
-                            "target_os": "windows|linux|any",
+                            "target_os": "windows|linux|any", 
                             "command": "actual command to run",
                             "description": "what this will do"
-                        }
-                        """
-                    },
-                    {"role": "user", "content": f"{user_input}\n\nPlease respond in one or two short sentences."}
+                        }}
+                        
+                        User command: {user_input}
+                        
+                        Remember: Respond with ONLY the JSON object, no other text."""
+                    }
                 ],
                 max_tokens=200,
                 temperature=0.1
             )
             
+            content = response.choices[0].message.content.strip()
+            
+            # Log the raw response for debugging
+            logger.debug(f"Raw AI response: {content}")
+            
+            # Handle empty response
+            if not content:
+                raise ValueError("Empty response from AI model")
+            
+            # Try to extract JSON if response has extra text
+            if content.startswith('```json'):
+                content = content.replace('```json', '').replace('```', '').strip()
+            
             import json
-            return json.loads(response.choices[0].message.content)
+            return json.loads(content)
         
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed. Raw response: {response.choices[0].message.content}")
+            logger.error(f"JSON error: {e}")
+            return {
+                "action": "unknown",
+                "target_os": "any", 
+                "command": user_input,
+                "description": "Direct command execution (JSON parse failed)"
+            }
         except Exception as e:
             logger.error(f"Command parsing failed: {e}")
             return {
