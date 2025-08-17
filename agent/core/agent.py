@@ -127,7 +127,7 @@ class Agent:
             """
             Return agent info and capabilities.
             """
-            return self.info.model_dump()
+            return self.info.model_dump(mode='json')
     
     def _validate_command(self, command: str) -> bool:
         """

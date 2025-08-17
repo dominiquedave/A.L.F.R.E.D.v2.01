@@ -27,7 +27,7 @@ class Coordinator:
             api_key=os.getenv('OPENAI_API_KEY')
         )
         # History of executed commands
-        self.command_history: List[Dict] = {}
+        self.command_history: List[Dict] = []
     
     async def register_agent(self, agent_info: AgentInfo):
         """Register a new agent"""
@@ -193,7 +193,7 @@ class Coordinator:
         try:
             async with aiohttp.ClientSession() as session:
                 url = f"http://{agent.host}:{agent.port}/execute"
-                async with session.post(url, json=message.model_dump()) as resp:
+                async with session.post(url, json=message.model_dump(mode='json')) as resp:
                     if resp.status == 200:
                         result_data = await resp.json()
                         result = CommandResult(**result_data)
@@ -204,7 +204,7 @@ class Coordinator:
                             "user_input": user_input,
                             "parsed_command": parsed_command,
                             "agent_used": agent.name,
-                            "result": result.model_dump()
+                            "result": result.model_dump(mode='json')
                         })
 
                         return result
