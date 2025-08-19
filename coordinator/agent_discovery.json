@@ -1,0 +1,30 @@
+{
+    "discovery_settings": {
+        "use_broadcast": true,
+        "scan_network": false,
+        "broadcast_port": 5099,
+        "scan_timeout": 3,
+        "manual_hosts": []
+    },
+    "network_configs": {
+        "home_network": {
+            "hosts": [
+                "192.168.1.10:5001",
+                "192.168.1.11:5002"
+            ]
+        },
+        "office_network": {
+            "hosts": [
+                "10.0.0.10:5001",
+                "10.0.0.11:5002",
+                "10.0.0.12:5003"
+            ]
+        },
+        "vm_network": {
+            "hosts": [
+                "10.0.2.15:5001",
+                "10.0.2.16:5002"
+            ]
+        }
+    }
+}

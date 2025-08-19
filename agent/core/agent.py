@@ -11,6 +11,8 @@ from pydantic import BaseModel
 import sys
 import os
 import logging
+import socket
+import threading
 
 # Add parent directory to sys.path for shared imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -39,6 +41,7 @@ class Agent:
         )
         self.app = FastAPI(title=f"Agent-{name}")
         self._setup_routes()
+        self._start_broadcast_listener()
     
     def _detect_capabilities(self) -> List[str]:
         """
@@ -159,6 +162,43 @@ class Agent:
         """
         dangerous_patterns = ["rm -rf", "del /f", "format", "shutdown", "reboot"]
         return not any(pattern in command.lower() for pattern in dangerous_patterns)
+
+    def _start_broadcast_listener(self):
+        """
+        Start UDP broadcast listener in a background thread to respond to coordinator discovery.
+        """
+        def broadcast_listener():
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(('', 5099))  # Listen on broadcast port
+                logger.info(f"Agent {self.info.id} listening for broadcasts on port 5099")
+                
+                while True:
+                    try:
+                        data, addr = sock.recvfrom(1024)
+                        message = json.loads(data.decode())
+                        
+                        if message.get("type") == "agent_discovery":
+                            # Respond with agent info
+                            response = {
+                                "type": "agent_response",
+                                "port": self.info.port,
+                                "agent_id": self.info.id,
+                                "name": self.info.name,
+                                "os_type": self.info.os_type
+                            }
+                            sock.sendto(json.dumps(response).encode(), addr)
+                            logger.info(f"Responded to discovery from {addr[0]}")
+                    except Exception as e:
+                        logger.debug(f"Broadcast listener error: {e}")
+                        
+            except Exception as e:
+                logger.warning(f"Failed to start broadcast listener: {e}")
+        
+        # Start listener in daemon thread
+        listener_thread = threading.Thread(target=broadcast_listener, daemon=True)
+        listener_thread.start()
 
 # Agent startup script
 if __name__ == "__main__":

@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 from shared.models import AgentInfo, Message, MessageType, CommandResult
 import logging
+import ipaddress
+import socket
+import json
+import time
 
 # Load environment variables
 load_dotenv()
@@ -28,29 +32,187 @@ class Coordinator:
         )
         # History of executed commands
         self.command_history: List[Dict] = []
+        # Load discovery configuration
+        self.discovery_config = self._load_discovery_config()
+    
+    def _load_discovery_config(self) -> Dict:
+        """
+        Load agent discovery configuration from file or environment.
+        """
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'agent_discovery.json')
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                logger.info(f"Loaded discovery config from {config_path}")
+                return config
+        except Exception as e:
+            logger.warning(f"Could not load discovery config: {e}")
+        
+        # Return default config
+        return {
+            "discovery_settings": {
+                "use_broadcast": True,
+                "scan_network": False,
+                "broadcast_port": 5099,
+                "scan_timeout": 3,
+                "manual_hosts": []
+            },
+            "network_configs": {}
+        }
     
     async def register_agent(self, agent_info: AgentInfo):
         """Register a new agent"""
         self.agents[agent_info.id] = agent_info
         logger.info(f"Registered agent: {agent_info.name} ({agent_info.id})")
     
+    def _get_local_network_range(self) -> List[str]:
+        """
+        Get the local network range for scanning.
+        """
+        try:
+            # Get local IP address
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+            
+            # Create network object (assuming /24 subnet)
+            network = ipaddress.IPv4Network(f"{local_ip}/24", strict=False)
+            
+            # Return first 20 IPs to avoid scanning entire subnet
+            ips = []
+            for i, ip in enumerate(network.hosts()):
+                if i >= 20:  # Limit scan to first 20 hosts
+                    break
+                ips.append(str(ip))
+            
+            return ips
+        except Exception as e:
+            logger.warning(f"Could not determine local network range: {e}")
+            return ["127.0.0.1"]
+
+    async def discover_agents_broadcast(self) -> List[str]:
+        """
+        Discover agents using UDP broadcast.
+        Sends broadcast message and waits for agent responses.
+        """
+        discovered_hosts = []
+        try:
+            # Create UDP socket for broadcast
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.settimeout(3)
+            
+            # Broadcast discovery message
+            discovery_msg = json.dumps({"type": "agent_discovery", "coordinator": "ALFRED"})
+            broadcast_port = 5099
+            
+            logger.info(f"Broadcasting agent discovery on port {broadcast_port}")
+            sock.sendto(discovery_msg.encode(), ('<broadcast>', broadcast_port))
+            
+            # Listen for responses
+            start_time = time.time()
+            while time.time() - start_time < 3:  # Listen for 3 seconds
+                try:
+                    data, addr = sock.recvfrom(1024)
+                    response = json.loads(data.decode())
+                    if response.get("type") == "agent_response":
+                        agent_host = f"{addr[0]}:{response.get('port', 5001)}"
+                        discovered_hosts.append(agent_host)
+                        logger.info(f"Agent responded from {agent_host}")
+                except socket.timeout:
+                    break
+                except Exception as e:
+                    logger.debug(f"Broadcast discovery error: {e}")
+                    break
+            
+            sock.close()
+        except Exception as e:
+            logger.warning(f"Broadcast discovery failed: {e}")
+        
+        return discovered_hosts
+
     async def discover_agents(self, host_range: List[str] = None):
         """
         Discover agents on the network by querying known host:port pairs.
+        Supports environment variables, network scanning, and manual host lists.
         """
         if not host_range:
-            host_range = ["localhost:5001", "10.0.2.15:5002"]
+            # Check for environment variable first
+            env_hosts = os.getenv('AGENT_DISCOVERY_HOSTS')
+            network_name = os.getenv('AGENT_NETWORK_CONFIG')
+            
+            if env_hosts:
+                host_range = [host.strip() for host in env_hosts.split(',')]
+                logger.info(f"Using environment variable AGENT_DISCOVERY_HOSTS: {host_range}")
+            elif network_name and network_name in self.discovery_config.get('network_configs', {}):
+                # Use predefined network configuration
+                network_config = self.discovery_config['network_configs'][network_name]
+                host_range = network_config.get('hosts', [])
+                logger.info(f"Using network config '{network_name}': {host_range}")
+            else:
+                # Use discovery settings from config
+                discovery_settings = self.discovery_config.get('discovery_settings', {})
+                use_broadcast = os.getenv('AGENT_USE_BROADCAST', str(discovery_settings.get('use_broadcast', True))).lower() == 'true'
+                
+                if use_broadcast:
+                    broadcast_hosts = await self.discover_agents_broadcast()
+                    if broadcast_hosts:
+                        host_range = broadcast_hosts
+                        logger.info(f"Found {len(broadcast_hosts)} agents via broadcast")
+                    else:
+                        logger.info("No agents found via broadcast, falling back to scanning")
+                
+                if not host_range:
+                    # Auto-discover based on network scanning
+                    scan_network = os.getenv('AGENT_SCAN_NETWORK', str(discovery_settings.get('scan_network', False))).lower() == 'true'
+                    if scan_network:
+                        logger.info("Scanning local network for agents...")
+                        network_ips = self._get_local_network_range()
+                        host_range = []
+                        # Try common agent ports on each IP
+                        for ip in network_ips:
+                            host_range.extend([f"{ip}:5001", f"{ip}:5002", f"{ip}:5003"])
+                    else:
+                        # Use manual hosts from config or default to localhost
+                        manual_hosts = discovery_settings.get('manual_hosts', [])
+                        if manual_hosts:
+                            host_range = manual_hosts
+                            logger.info(f"Using manual hosts from config: {host_range}")
+                        else:
+                            host_range = [
+                                "localhost:5001", 
+                                "localhost:5002",
+                                "127.0.0.1:5001", 
+                                "127.0.0.1:5002"
+                            ]
         
-        for host_port in host_range:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"http://{host_port}/capabilities", timeout=5) as resp:
-                        if resp.status == 200:
-                            agent_data = await resp.json()
-                            agent_info = AgentInfo(**agent_data)
-                            await self.register_agent(agent_info)
-            except Exception as e:
-                logger.debug(f"Could not connect to {host_port}: {e}")
+        logger.info(f"Discovering agents on: {len(host_range)} hosts")
+        
+        # Use semaphore to limit concurrent connections
+        semaphore = asyncio.Semaphore(10)
+        
+        async def check_host(host_port):
+            async with semaphore:
+                try:
+                    logger.debug(f"Checking {host_port}")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f"http://{host_port}/capabilities", timeout=3) as resp:
+                            if resp.status == 200:
+                                agent_data = await resp.json()
+                                agent_info = AgentInfo(**agent_data)
+                                await self.register_agent(agent_info)
+                                logger.info(f"✓ Found agent at {host_port}")
+                                return True
+                except Exception as e:
+                    logger.debug(f"Could not connect to {host_port}: {e}")
+                return False
+        
+        # Run discovery concurrently
+        tasks = [check_host(host_port) for host_port in host_range]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        found_count = sum(1 for r in results if r is True)
+        logger.info(f"Agent discovery complete: {found_count} agents found")
     
     async def health_check_agents(self):
         """
