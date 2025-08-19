@@ -4,7 +4,7 @@
         "scan_network": false,
         "broadcast_port": 5099,
         "scan_timeout": 3,
-        "manual_hosts": ["149.40.62.123:5001"]
+        "manual_hosts": ["10.0.2.15:5001"]
     },
     "network_configs": {
         "home_network": {
