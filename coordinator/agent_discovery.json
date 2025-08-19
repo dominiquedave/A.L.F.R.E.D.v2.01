@@ -1,10 +1,10 @@
 {
     "discovery_settings": {
-        "use_broadcast": true,
+        "use_broadcast": false,
         "scan_network": false,
         "broadcast_port": 5099,
         "scan_timeout": 3,
-        "manual_hosts": []
+        "manual_hosts": ["149.40.62.123:5001"]
     },
     "network_configs": {
         "home_network": {
