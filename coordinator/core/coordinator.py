@@ -39,7 +39,7 @@ class Coordinator:
         Discover agents on the network by querying known host:port pairs.
         """
         if not host_range:
-            host_range = ["localhost:5001", "localhost:5002"]
+            host_range = ["localhost:5001", "10.0.2.15:5002"]
         
         for host_port in host_range:
             try:
