@@ -202,14 +202,23 @@ class Coordinator:
                 
                 logger.info(f"📻 Broadcast setting - ENV: '{use_broadcast_env}', CONFIG: {use_broadcast_config}, FINAL: {use_broadcast}")
                 
+                # Start with manual hosts
+                manual_hosts = discovery_settings.get('manual_hosts', [])
+                host_range = manual_hosts.copy() if manual_hosts else []
+                logger.info(f"📝 Starting with manual hosts: {host_range}")
+                
                 if use_broadcast:
                     logger.info("🔄 Attempting broadcast discovery...")
                     broadcast_hosts = await self.discover_agents_broadcast()
                     if broadcast_hosts:
-                        host_range = broadcast_hosts
+                        # Add broadcast hosts to manual hosts (avoid duplicates)
+                        for bcast_host in broadcast_hosts:
+                            if bcast_host not in host_range:
+                                host_range.append(bcast_host)
                         logger.info(f"✅ Found {len(broadcast_hosts)} agents via broadcast: {broadcast_hosts}")
+                        logger.info(f"🔗 Combined host list: {host_range}")
                     else:
-                        logger.warning("⚠️ No agents found via broadcast, falling back to other methods")
+                        logger.warning("⚠️ No agents found via broadcast")
                 else:
                     logger.info("❌ Broadcast discovery disabled")
                 
@@ -231,14 +240,8 @@ class Coordinator:
                             host_range.extend([f"{ip}:5001", f"{ip}:5002", f"{ip}:5003"])
                         logger.info(f"🎯 Generated scan targets: {len(host_range)} hosts")
                     else:
-                        # Use manual hosts from config or default to localhost
-                        manual_hosts = discovery_settings.get('manual_hosts', [])
-                        logger.info(f"📝 Manual hosts from config: {manual_hosts}")
-                        
-                        if manual_hosts:
-                            host_range = manual_hosts
-                            logger.info(f"✅ Using manual hosts from config: {host_range}")
-                        else:
+                        # If no manual hosts and no scanning, use default localhost
+                        if not host_range:
                             host_range = [
                                 "localhost:5001", 
                                 "localhost:5002",

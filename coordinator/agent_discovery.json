@@ -4,7 +4,7 @@
         "scan_network": false,
         "broadcast_port": 5099,
         "scan_timeout": 3,
-        "manual_hosts": ["192.168.1.253:5001", "localhost:5002"]
+        "manual_hosts": ["192.168.1.253:5001", "localhost:5002", "192.168.56.1:5002"]
     },
     "network_configs": {
         "home_network": {
