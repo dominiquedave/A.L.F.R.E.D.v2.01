@@ -63,8 +63,12 @@ class Coordinator:
     
     async def register_agent(self, agent_info: AgentInfo):
         """Register a new agent"""
+        if agent_info.id in self.agents:
+            logger.warning(f"Agent {agent_info.id} already exists - replacing with new registration")
+        
         self.agents[agent_info.id] = agent_info
-        logger.info(f"Registered agent: {agent_info.name} ({agent_info.id})")
+        logger.info(f"Registered agent: {agent_info.name} ({agent_info.id}) at {agent_info.host}:{agent_info.port}")
+        logger.info(f"Total agents registered: {len(self.agents)} - {list(self.agents.keys())}")
     
     def _get_local_network_range(self) -> List[str]:
         """
@@ -298,7 +302,9 @@ class Coordinator:
         
         logger.info(f"🏁 Agent discovery complete!")
         logger.info(f"📊 Results: {successful_connections} agents found, {failed_connections} failed connections, {exceptions} exceptions")
-        logger.info(f"🤖 Registered agents: {list(self.agents.keys())}")
+        logger.info(f"🤖 Registered agents: {len(self.agents)} total")
+        for agent_id, agent_info in self.agents.items():
+            logger.info(f"   - {agent_info.name} ({agent_id}) at {agent_info.host}:{agent_info.port} - healthy: {agent_info.is_healthy}")
         
         if exceptions > 0:
             exception_details = [str(r) for r in results if isinstance(r, Exception)]

@@ -30,7 +30,7 @@ class Agent:
     def __init__(self, name: str, host: str = "localhost", port: int = 5001):
         # Initialize agent info and FastAPI app
         self.info = AgentInfo(
-            id=f"{platform.node()}-{port}",
+            id=f"{platform.node()}-{platform.system()}-{port}",
             name=name,
             os_type=platform.system(),
             capabilities=self._detect_capabilities(),
