@@ -321,37 +321,78 @@ class Coordinator:
     async def health_check_agents(self):
         """
         Check health of all registered agents by calling their /health endpoint.
-        Remove agents that have been unhealthy for more than 2 minutes.
+        Retry failed connections and only mark as unhealthy after multiple failures.
         """
-        agents_to_remove = []
-        
-        for agent_id, agent_info in self.agents.items():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    url = f"http://{agent_info.host}:{agent_info.port}/health"
-                    async with session.get(url, timeout=10) as resp:
-                        if resp.status == 200:
-                            self.agents[agent_id].is_healthy = True
-                            self.agents[agent_id].last_seen = datetime.now()
-                        else:
-                            self.agents[agent_id].is_healthy = False
-            except Exception as e:
-                logger.warning(f"Agent {agent_id} health check failed: {e}")
-                # Check if agent still exists before updating status
-                if agent_id in self.agents:
-                    self.agents[agent_id].is_healthy = False
+        for agent_id, agent_info in list(self.agents.items()):
+            health_check_passed = False
             
-            # Mark for removal if unhealthy for more than 2 minutes
-            if not agent_info.is_healthy:
-                time_since_last_seen = datetime.now() - agent_info.last_seen
-                if time_since_last_seen > timedelta(minutes=2):
-                    agents_to_remove.append(agent_id)
+            # Try health check with retry logic
+            for attempt in range(3):  # Try up to 3 times
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        url = f"http://{agent_info.host}:{agent_info.port}/health"
+                        logger.debug(f"Health check attempt {attempt + 1}/3 for agent {agent_id} at {url}")
+                        
+                        async with session.get(url, timeout=5) as resp:
+                            if resp.status == 200:
+                                health_data = await resp.json()
+                                logger.debug(f"Agent {agent_id} health check passed: {health_data.get('status', 'unknown')}")
+                                
+                                if agent_id in self.agents:  # Double-check agent still exists
+                                    self.agents[agent_id].is_healthy = True
+                                    self.agents[agent_id].last_seen = datetime.now()
+                                health_check_passed = True
+                                break
+                            else:
+                                logger.warning(f"Agent {agent_id} health check returned status {resp.status}")
+                                
+                except Exception as e:
+                    logger.warning(f"Agent {agent_id} health check attempt {attempt + 1} failed: {e}")
+                    if attempt < 2:  # If not the last attempt
+                        await asyncio.sleep(1)  # Wait 1 second before retry
+            
+            # Update agent status based on health check result
+            if agent_id in self.agents:
+                if not health_check_passed:
+                    self.agents[agent_id].is_healthy = False
+                    logger.warning(f"Agent {agent_id} marked as unhealthy after 3 failed attempts")
+                
+                # Log current status
+                status = "healthy" if self.agents[agent_id].is_healthy else "unhealthy"
+                time_since_last_seen = datetime.now() - self.agents[agent_id].last_seen
+                logger.info(f"Agent {agent_id} status: {status}, last seen: {time_since_last_seen.total_seconds():.1f}s ago")
+    
+    async def test_agent_connectivity(self, agent_id: str) -> Dict:
+        """
+        Test connectivity to a specific agent for debugging purposes.
+        """
+        if agent_id not in self.agents:
+            return {"error": f"Agent {agent_id} not found"}
+            
+        agent_info = self.agents[agent_id]
+        results = {}
         
-        # Remove unhealthy agents
-        for agent_id in agents_to_remove:
-            agent_name = self.agents[agent_id].name
-            del self.agents[agent_id]
-            logger.info(f"Removed unhealthy agent: {agent_name} ({agent_id})")
+        # Test health endpoint
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"http://{agent_info.host}:{agent_info.port}/health"
+                async with session.get(url, timeout=5) as resp:
+                    results["health_status"] = resp.status
+                    results["health_response"] = await resp.json() if resp.status == 200 else await resp.text()
+        except Exception as e:
+            results["health_error"] = str(e)
+        
+        # Test capabilities endpoint
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"http://{agent_info.host}:{agent_info.port}/capabilities"
+                async with session.get(url, timeout=5) as resp:
+                    results["capabilities_status"] = resp.status
+                    results["capabilities_response"] = await resp.json() if resp.status == 200 else await resp.text()
+        except Exception as e:
+            results["capabilities_error"] = str(e)
+            
+        return results
     
     async def parse_command(self, user_input: str) -> Dict:
         """
