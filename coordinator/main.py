@@ -15,18 +15,24 @@ async def main():
     # Discover agents
     await coordinator.discover_agents()
     
-    # Start health monitoring
+    # Start health monitoring and periodic discovery
     async def health_monitor():
         while True:
             await coordinator.health_check_agents()
             await asyncio.sleep(30)
     
+    async def discovery_monitor():
+        while True:
+            await asyncio.sleep(60)  # Re-discover every 60 seconds
+            await coordinator.discover_agents()
+    
     # Start voice interface
     voice = VoiceInterface(coordinator)
     
-    # Run both concurrently
+    # Run all concurrently
     await asyncio.gather(
         health_monitor(),
+        discovery_monitor(),
         voice.run_voice_loop()
     )
 

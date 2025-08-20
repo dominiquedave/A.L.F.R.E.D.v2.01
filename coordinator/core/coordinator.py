@@ -307,7 +307,10 @@ class Coordinator:
     async def health_check_agents(self):
         """
         Check health of all registered agents by calling their /health endpoint.
+        Remove agents that have been unhealthy for more than 2 minutes.
         """
+        agents_to_remove = []
+        
         for agent_id, agent_info in self.agents.items():
             try:
                 async with aiohttp.ClientSession() as session:
@@ -321,6 +324,18 @@ class Coordinator:
             except Exception as e:
                 self.agents[agent_id].is_healthy = False
                 logger.warning(f"Agent {agent_id} health check failed: {e}")
+            
+            # Mark for removal if unhealthy for more than 2 minutes
+            if not agent_info.is_healthy:
+                time_since_last_seen = datetime.now() - agent_info.last_seen
+                if time_since_last_seen > timedelta(minutes=2):
+                    agents_to_remove.append(agent_id)
+        
+        # Remove unhealthy agents
+        for agent_id in agents_to_remove:
+            agent_name = self.agents[agent_id].name
+            del self.agents[agent_id]
+            logger.info(f"Removed unhealthy agent: {agent_name} ({agent_id})")
     
     async def parse_command(self, user_input: str) -> Dict:
         """
