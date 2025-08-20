@@ -276,6 +276,11 @@ class Coordinator:
                                 agent_data = await resp.json()
                                 logger.info(f"📋 Agent data received from {host_port}: {agent_data}")
                                 
+                                # Override agent's self-reported address with discovery address
+                                discovery_host, discovery_port = host_port.split(':')
+                                agent_data['host'] = discovery_host
+                                agent_data['port'] = int(discovery_port)
+                                
                                 agent_info = AgentInfo(**agent_data)
                                 await self.register_agent(agent_info)
                                 logger.info(f"✅ Successfully found and registered agent at {host_port}")
@@ -331,8 +336,10 @@ class Coordinator:
                         else:
                             self.agents[agent_id].is_healthy = False
             except Exception as e:
-                self.agents[agent_id].is_healthy = False
                 logger.warning(f"Agent {agent_id} health check failed: {e}")
+                # Check if agent still exists before updating status
+                if agent_id in self.agents:
+                    self.agents[agent_id].is_healthy = False
             
             # Mark for removal if unhealthy for more than 2 minutes
             if not agent_info.is_healthy:
