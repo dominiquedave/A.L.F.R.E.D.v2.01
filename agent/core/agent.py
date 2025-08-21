@@ -28,6 +28,10 @@ class Agent:
     Exposes a FastAPI app with endpoints for command execution, health, and capabilities.
     """
     def __init__(self, name: str, host: str = "localhost", port: int = 5001):
+        # Auto-detect external IP if host is localhost
+        if host == "localhost":
+            host = self._get_external_ip()
+            
         # Initialize agent info and FastAPI app
         self.info = AgentInfo(
             id=f"{platform.node()}-{platform.system()}-{port}",
@@ -59,6 +63,35 @@ class Agent:
         Return default permissions for the agent.
         """
         return [Permission.FILE_READ, Permission.PROCESS_READ, Permission.SYSTEM_READ]
+    
+    def _get_external_ip(self) -> str:
+        """
+        Auto-detect the external IP address of this machine.
+        Falls back to localhost if detection fails.
+        """
+        try:
+            # Method 1: Connect to remote host to determine local IP
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))  # Google DNS
+                external_ip = s.getsockname()[0]
+                logger.info(f"Auto-detected external IP: {external_ip}")
+                return external_ip
+        except Exception as e:
+            logger.warning(f"Could not auto-detect external IP: {e}")
+            
+        try:
+            # Method 2: Get hostname IP
+            hostname = socket.gethostname()
+            external_ip = socket.gethostbyname(hostname)
+            if external_ip != "127.0.0.1":
+                logger.info(f"Using hostname IP: {external_ip}")
+                return external_ip
+        except Exception as e:
+            logger.warning(f"Could not get hostname IP: {e}")
+            
+        # Fallback to localhost
+        logger.warning("Using localhost as fallback - health checks may fail")
+        return "localhost"
     
     def _setup_routes(self):
         """
@@ -206,12 +239,13 @@ if __name__ == "__main__":
     
     agent_name = sys.argv[1] if len(sys.argv) > 1 else "default"
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 5001
+    host = sys.argv[3] if len(sys.argv) > 3 else "localhost"  # Allow manual host override
     
-    logger.info(f"Starting agent '{agent_name}' on port {port}")
+    logger.info(f"Starting agent '{agent_name}' on {host}:{port}")
     
     try:
-        agent = Agent(agent_name, port=port)
-        logger.info(f"Agent {agent.info.id} initialized successfully")
+        agent = Agent(agent_name, host=host, port=port)
+        logger.info(f"Agent {agent.info.id} initialized successfully at {agent.info.host}:{agent.info.port}")
         uvicorn.run(agent.app, host="0.0.0.0", port=port)
     except Exception as e:
         logger.error(f"Failed to start agent: {e}")

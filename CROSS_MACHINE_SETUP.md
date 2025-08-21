@@ -35,8 +35,11 @@ The coordinator now supports multiple methods to discover agents running on diff
 # On Windows (coordinator):
 set AGENT_DISCOVERY_HOSTS=10.0.2.15:5001,localhost:5002
 
-# On Linux VM (agent):
+# On Linux VM (agent) - auto-detects IP:
 python agent/core/agent.py vm-agent 5001
+
+# On Linux VM (agent) - manual IP override:
+python agent/core/agent.py vm-agent 5001 192.168.1.253
 
 # On Windows (agent):
 python agent/core/agent.py windows-agent 5002
@@ -77,6 +80,8 @@ python coordinator/main.py
 2. **Verify network**: Use `ping` to test connectivity between machines
 3. **Check logs**: Enable debug logging to see discovery attempts
 4. **Test manually**: Try `curl http://AGENT_IP:5001/capabilities`
+5. **Verify agent IP**: Check agent logs for "Auto-detected external IP" message
+6. **Manual IP override**: Use 3rd parameter: `python agent/core/agent.py name port IP`
 
 ### Broadcast Not Working
 - Some networks block UDP broadcast
