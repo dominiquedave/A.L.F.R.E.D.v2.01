@@ -34,6 +34,9 @@ class Coordinator:
         self.command_history: List[Dict] = []
         # Load discovery configuration
         self.discovery_config = self._load_discovery_config()
+        # Health check synchronization
+        self._health_check_lock = asyncio.Lock()
+        self._last_health_check = datetime.min
     
     def _load_discovery_config(self) -> Dict:
         """
@@ -318,49 +321,62 @@ class Coordinator:
             exception_details = [str(r) for r in results if isinstance(r, Exception)]
             logger.warning(f"⚠️ Exceptions encountered: {exception_details}")
     
-    async def health_check_agents(self):
+    async def health_check_agents(self, force: bool = False):
         """
         Check health of all registered agents by calling their /health endpoint.
         Retry failed connections and only mark as unhealthy after multiple failures.
+        
+        Args:
+            force: If True, bypass rate limiting and run check immediately
         """
-        for agent_id, agent_info in list(self.agents.items()):
-            health_check_passed = False
+        async with self._health_check_lock:
+            # Rate limiting: don't check more than once per 10 seconds unless forced
+            time_since_last_check = datetime.now() - self._last_health_check
+            if not force and time_since_last_check < timedelta(seconds=10):
+                logger.debug(f"Health check skipped - last check was {time_since_last_check.total_seconds():.1f}s ago")
+                return
             
-            # Try health check with retry logic
-            for attempt in range(3):  # Try up to 3 times
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        url = f"http://{agent_info.host}:{agent_info.port}/health"
-                        logger.debug(f"Health check attempt {attempt + 1}/3 for agent {agent_id} at {url}")
-                        
-                        async with session.get(url, timeout=5) as resp:
-                            if resp.status == 200:
-                                health_data = await resp.json()
-                                logger.debug(f"Agent {agent_id} health check passed: {health_data.get('status', 'unknown')}")
-                                
-                                if agent_id in self.agents:  # Double-check agent still exists
-                                    self.agents[agent_id].is_healthy = True
-                                    self.agents[agent_id].last_seen = datetime.now()
-                                health_check_passed = True
-                                break
-                            else:
-                                logger.warning(f"Agent {agent_id} health check returned status {resp.status}")
-                                
-                except Exception as e:
-                    logger.warning(f"Agent {agent_id} health check attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:  # If not the last attempt
-                        await asyncio.sleep(1)  # Wait 1 second before retry
+            logger.debug("Starting health check of all agents...")
+            self._last_health_check = datetime.now()
             
-            # Update agent status based on health check result
-            if agent_id in self.agents:
-                if not health_check_passed:
-                    self.agents[agent_id].is_healthy = False
-                    logger.warning(f"Agent {agent_id} marked as unhealthy after 3 failed attempts")
+            for agent_id, agent_info in list(self.agents.items()):
+                health_check_passed = False
                 
-                # Log current status
-                status = "healthy" if self.agents[agent_id].is_healthy else "unhealthy"
-                time_since_last_seen = datetime.now() - self.agents[agent_id].last_seen
-                logger.info(f"Agent {agent_id} status: {status}, last seen: {time_since_last_seen.total_seconds():.1f}s ago")
+                # Try health check with retry logic
+                for attempt in range(3):  # Try up to 3 times
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            url = f"http://{agent_info.host}:{agent_info.port}/health"
+                            logger.debug(f"Health check attempt {attempt + 1}/3 for agent {agent_id} at {url}")
+                            
+                            async with session.get(url, timeout=5) as resp:
+                                if resp.status == 200:
+                                    health_data = await resp.json()
+                                    logger.debug(f"Agent {agent_id} health check passed: {health_data.get('status', 'unknown')}")
+                                    
+                                    if agent_id in self.agents:  # Double-check agent still exists
+                                        self.agents[agent_id].is_healthy = True
+                                        self.agents[agent_id].last_seen = datetime.now()
+                                    health_check_passed = True
+                                    break
+                                else:
+                                    logger.warning(f"Agent {agent_id} health check returned status {resp.status}")
+                                    
+                    except Exception as e:
+                        logger.warning(f"Agent {agent_id} health check attempt {attempt + 1} failed: {e}")
+                        if attempt < 2:  # If not the last attempt
+                            await asyncio.sleep(1)  # Wait 1 second before retry
+                
+                # Update agent status based on health check result
+                if agent_id in self.agents:
+                    if not health_check_passed:
+                        self.agents[agent_id].is_healthy = False
+                        logger.warning(f"Agent {agent_id} marked as unhealthy after 3 failed attempts")
+                    
+                    # Log current status
+                    status = "healthy" if self.agents[agent_id].is_healthy else "unhealthy"
+                    time_since_last_seen = datetime.now() - self.agents[agent_id].last_seen
+                    logger.info(f"Agent {agent_id} status: {status}, last seen: {time_since_last_seen.total_seconds():.1f}s ago")
     
     async def test_agent_connectivity(self, agent_id: str) -> Dict:
         """

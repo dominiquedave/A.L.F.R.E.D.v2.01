@@ -94,11 +94,20 @@ class VoiceInterface:
                 break
             
             if command.lower() in ['status', 'agents']:
-                # Trigger fresh health check before reporting status
-                await self.coordinator.health_check_agents()
+                # Force a fresh health check for accurate status (bypass rate limiting)
+                await self.coordinator.health_check_agents(force=True)
                 healthy_count = sum(1 for agent in self.coordinator.agents.values() if agent.is_healthy)
                 total_count = len(self.coordinator.agents)
-                response = f"I have {healthy_count} healthy agents out of {total_count} total agents."
+                
+                # Detailed status report
+                if total_count == 0:
+                    response = "No agents are currently registered."
+                else:
+                    response = f"I have {healthy_count} healthy agents out of {total_count} total agents."
+                    if healthy_count < total_count:
+                        unhealthy_count = total_count - healthy_count
+                        response += f" {unhealthy_count} agents are currently unhealthy."
+                
                 self.speak_response(response)
                 continue
             

@@ -18,13 +18,20 @@ async def main():
     # Start health monitoring and periodic discovery
     async def health_monitor():
         while True:
-            await coordinator.health_check_agents()
-            await asyncio.sleep(30)
+            try:
+                # Background health checks - no force, respects rate limiting
+                await coordinator.health_check_agents(force=False)
+            except Exception as e:
+                print(f"Background health check error: {e}")
+            await asyncio.sleep(45)  # Increased interval to reduce interference
     
     async def discovery_monitor():
         while True:
-            await asyncio.sleep(60)  # Re-discover every 60 seconds
-            await coordinator.discover_agents()
+            await asyncio.sleep(300)  # Re-discover every 5 minutes (reduced frequency)
+            try:
+                await coordinator.discover_agents()
+            except Exception as e:
+                print(f"Background discovery error: {e}")
     
     # Start voice interface
     voice = VoiceInterface(coordinator)
