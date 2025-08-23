@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}A.L.F.R.E.D. Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-tachometer-alt me-2"></i>System Dashboard</h1>
+            <div>
+                <button class="btn btn-outline-primary me-2" onclick="discoverAgents()">
+                    <i class="fas fa-search me-1"></i>Discover Agents
+                </button>
+                <button class="btn btn-outline-success" onclick="healthCheck()">
+                    <i class="fas fa-heartbeat me-1"></i>Health Check
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title">Total Agents</h5>
+                        <h2 class="mb-0">{{ agent_count }}</h2>
+                    </div>
+                    <div class="ms-3">
+                        <i class="fas fa-server fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title">Healthy Agents</h5>
+                        <h2 class="mb-0">{{ healthy_count }}</h2>
+                    </div>
+                    <div class="ms-3">
+                        <i class="fas fa-heart fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-{{ 'warning' if (agent_count - healthy_count) > 0 else 'secondary' }} text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title">Unhealthy Agents</h5>
+                        <h2 class="mb-0">{{ agent_count - healthy_count }}</h2>
+                    </div>
+                    <div class="ms-3">
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-server me-2"></i>Active Agents</h5>
+            </div>
+            <div class="card-body">
+                {% if agents %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>OS</th>
+                                <th>Address</th>
+                                <th>Status</th>
+                                <th>Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agents-table">
+                            {% for agent in agents %}
+                            <tr>
+                                <td><strong>{{ agent.name }}</strong></td>
+                                <td>
+                                    <i class="fab fa-{{ 'windows' if agent.os_type == 'Windows' else 'linux' }} me-1"></i>
+                                    {{ agent.os_type }}
+                                </td>
+                                <td><code>{{ agent.host }}:{{ agent.port }}</code></td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if agent.is_healthy else 'danger' }}">
+                                        <i class="fas fa-{{ 'check-circle' if agent.is_healthy else 'times-circle' }} me-1"></i>
+                                        {{ 'Healthy' if agent.is_healthy else 'Unhealthy' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ agent.last_seen.strftime('%H:%M:%S') }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No agents discovered yet. Click "Discover Agents" to scan for available agents.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-history me-2"></i>Recent Commands</h5>
+            </div>
+            <div class="card-body">
+                {% if command_history %}
+                <div class="command-history">
+                    {% for cmd in command_history %}
+                    <div class="command-item mb-3 p-2 border rounded">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-{{ 'success' if cmd.result.success else 'danger' }} me-2">
+                                {{ 'Success' if cmd.result.success else 'Failed' }}
+                            </span>
+                            <small class="text-muted">{{ cmd.timestamp[:19] }}</small>
+                        </div>
+                        <code class="small">{{ cmd.user_input[:50] }}{{ '...' if cmd.user_input|length > 50 else '' }}</code>
+                        <div class="mt-1">
+                            <small class="text-muted">Agent: {{ cmd.agent_used }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No commands executed yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh agents every 15 seconds
+setInterval(refreshAgents, 15000);
+
+function refreshAgents() {
+    fetch('/api/agents')
+        .then(response => response.json())
+        .then(data => {
+            updateAgentsTable(data.agents);
+            updateStats(data.agents);
+        })
+        .catch(error => console.error('Error refreshing agents:', error));
+}
+
+function updateAgentsTable(agents) {
+    const tbody = document.getElementById('agents-table');
+    if (!tbody) return;
+    
+    tbody.innerHTML = agents.map(agent => `
+        <tr>
+            <td><strong>${agent.name}</strong></td>
+            <td>
+                <i class="fab fa-${agent.os_type === 'Windows' ? 'windows' : 'linux'} me-1"></i>
+                ${agent.os_type}
+            </td>
+            <td><code>${agent.host}:${agent.port}</code></td>
+            <td>
+                <span class="badge bg-${agent.is_healthy ? 'success' : 'danger'}">
+                    <i class="fas fa-${agent.is_healthy ? 'check-circle' : 'times-circle'} me-1"></i>
+                    ${agent.is_healthy ? 'Healthy' : 'Unhealthy'}
+                </span>
+            </td>
+            <td>
+                <small class="text-muted">${new Date(agent.last_seen).toLocaleTimeString()}</small>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateStats(agents) {
+    const totalCount = agents.length;
+    const healthyCount = agents.filter(agent => agent.is_healthy).length;
+    const unhealthyCount = totalCount - healthyCount;
+    
+    document.querySelector('.card.bg-primary .card-body h2').textContent = totalCount;
+    document.querySelector('.card.bg-success .card-body h2').textContent = healthyCount;
+    const unhealthyCard = document.querySelector('.card.bg-warning .card-body h2') || 
+                         document.querySelector('.card.bg-secondary .card-body h2');
+    if (unhealthyCard) unhealthyCard.textContent = unhealthyCount;
+}
+
+function discoverAgents() {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Discovering...';
+    btn.disabled = true;
+    
+    fetch('/api/discover', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            setTimeout(() => refreshAgents(), 2000); // Refresh after 2 seconds
+        })
+        .finally(() => {
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }, 3000);
+        });
+}
+
+function healthCheck() {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Checking...';
+    btn.disabled = true;
+    
+    fetch('/api/health-check', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            setTimeout(() => refreshAgents(), 1000); // Refresh after 1 second
+        })
+        .finally(() => {
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }, 2000);
+        });
+}
+</script>
+{% endblock %}

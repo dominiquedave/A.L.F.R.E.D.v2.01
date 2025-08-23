@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Agents - A.L.F.R.E.D.{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-server me-2"></i>Agent Management</h1>
+            <div>
+                <button class="btn btn-outline-primary me-2" onclick="discoverAgents()">
+                    <i class="fas fa-search me-1"></i>Discover Agents
+                </button>
+                <button class="btn btn-outline-success" onclick="healthCheck()">
+                    <i class="fas fa-heartbeat me-1"></i>Health Check All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if agents %}
+<div class="row">
+    {% for agent in agents %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card agent-card {{ 'border-success' if agent.is_healthy else 'border-danger' }}">
+            <div class="card-header d-flex align-items-center">
+                <span class="badge bg-{{ 'success' if agent.is_healthy else 'danger' }} me-2">
+                    <i class="fas fa-{{ 'check-circle' if agent.is_healthy else 'times-circle' }}"></i>
+                </span>
+                <h5 class="card-title mb-0">{{ agent.name }}</h5>
+                <div class="ms-auto">
+                    <i class="fab fa-{{ 'windows' if agent.os_type == 'Windows' else 'linux' }} fa-lg text-muted"></i>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted">OS Type</small>
+                            <div><strong>{{ agent.os_type }}</strong></div>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Status</small>
+                            <div>
+                                <span class="text-{{ 'success' if agent.is_healthy else 'danger' }}">
+                                    {{ 'Healthy' if agent.is_healthy else 'Unhealthy' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">Address</small>
+                    <div><code>{{ agent.host }}:{{ agent.port }}</code></div>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">Agent ID</small>
+                    <div><code class="small">{{ agent.id }}</code></div>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">Last Seen</small>
+                    <div>{{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">Capabilities</small>
+                    <div class="mt-1">
+                        {% for capability in agent.capabilities %}
+                        <span class="badge bg-secondary me-1 mb-1">{{ capability }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">Permissions</small>
+                    <div class="mt-1">
+                        {% for permission in agent.permissions %}
+                        <span class="badge bg-info me-1 mb-1">{{ permission.value }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <button class="btn btn-sm btn-outline-primary" onclick="testConnectivity('{{ agent.id }}')">
+                        <i class="fas fa-network-wired me-1"></i>Test Connection
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="healthCheckSingle('{{ agent.id }}')">
+                        <i class="fas fa-heartbeat me-1"></i>Health Check
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-robot fa-4x text-muted mb-4"></i>
+                <h3 class="text-muted">No Agents Found</h3>
+                <p class="text-muted">No agents have been discovered yet. Click the "Discover Agents" button to scan for available agents on your network.</p>
+                <button class="btn btn-primary" onclick="discoverAgents()">
+                    <i class="fas fa-search me-1"></i>Discover Agents Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Status Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="statusToast" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="fas fa-info-circle text-primary me-2"></i>
+            <strong class="me-auto">Status</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            Status message here
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('statusToast');
+    const toastBody = document.getElementById('toastMessage');
+    const toastHeader = toast.querySelector('.toast-header i');
+    
+    toastBody.textContent = message;
+    
+    // Update icon and color based on type
+    toastHeader.className = `fas fa-${type === 'success' ? 'check-circle text-success' : 
+                                     type === 'error' ? 'exclamation-circle text-danger' : 
+                                     'info-circle text-primary'} me-2`;
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+
+function discoverAgents() {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Discovering...';
+    btn.disabled = true;
+    
+    fetch('/api/discover', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            showToast('Agent discovery initiated. Refreshing in 3 seconds...', 'success');
+            setTimeout(() => window.location.reload(), 3000);
+        })
+        .catch(error => {
+            showToast('Failed to discover agents: ' + error.message, 'error');
+        })
+        .finally(() => {
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }, 3000);
+        });
+}
+
+function healthCheck() {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Checking...';
+    btn.disabled = true;
+    
+    fetch('/api/health-check', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            showToast('Health check completed. Refreshing...', 'success');
+            setTimeout(() => window.location.reload(), 2000);
+        })
+        .catch(error => {
+            showToast('Health check failed: ' + error.message, 'error');
+        })
+        .finally(() => {
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }, 2000);
+        });
+}
+
+function testConnectivity(agentId) {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testing...';
+    btn.disabled = true;
+    
+    // This would need to be implemented as an API endpoint
+    showToast('Connectivity test not implemented yet', 'info');
+    
+    setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }, 2000);
+}
+
+function healthCheckSingle(agentId) {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Checking...';
+    btn.disabled = true;
+    
+    // This would trigger a health check for a specific agent
+    fetch('/api/health-check', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            showToast(`Health check completed for agent`, 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        })
+        .catch(error => {
+            showToast('Health check failed: ' + error.message, 'error');
+        })
+        .finally(() => {
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }, 1000);
+        });
+}
+</script>
+{% endblock %}

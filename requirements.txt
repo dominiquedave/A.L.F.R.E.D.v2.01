@@ -1,0 +1,28 @@
+# A.L.F.R.E.D. Dependencies
+
+# Core dependencies
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+aiohttp>=3.8.0
+openai>=1.0.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Voice interface dependencies
+speechrecognition>=3.10.0
+pyaudio>=0.2.11
+pyttsx3>=2.90
+
+# Web interface dependencies
+jinja2>=3.1.0
+python-multipart>=0.0.6
+
+# Development dependencies (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.0.0

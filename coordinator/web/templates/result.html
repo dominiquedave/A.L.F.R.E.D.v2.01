@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Command Result - A.L.F.R.E.D.{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex align-items-center mb-4">
+            <h1><i class="fas fa-terminal me-2"></i>Command Result</h1>
+            <div class="ms-auto">
+                <a href="/command" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Execute Another Command
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                {% if success %}
+                <span class="badge bg-success me-2">
+                    <i class="fas fa-check-circle me-1"></i>Success
+                </span>
+                {% else %}
+                <span class="badge bg-danger me-2">
+                    <i class="fas fa-times-circle me-1"></i>Failed
+                </span>
+                {% endif %}
+                <h5 class="card-title mb-0">Executed Command</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label"><strong>Command:</strong></label>
+                    <div class="p-2 bg-light border rounded">
+                        <code>{{ command }}</code>
+                    </div>
+                </div>
+                
+                {% if output %}
+                <div class="mb-3">
+                    <label class="form-label"><strong>Output:</strong></label>
+                    <div class="p-3 bg-dark text-light border rounded output-container">
+                        <pre class="mb-0"><code>{{ output }}</code></pre>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if error %}
+                <div class="mb-3">
+                    <label class="form-label"><strong>Error:</strong></label>
+                    <div class="p-3 bg-danger text-white border rounded">
+                        <pre class="mb-0"><code>{{ error }}</code></pre>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if not output and not error %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Command executed but produced no output.
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="/command" class="btn btn-primary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Commands
+                    </a>
+                    <a href="/" class="btn btn-outline-secondary">
+                        <i class="fas fa-home me-1"></i>Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.output-container {
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+}
+
+.output-container pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+</style>
+{% endblock %}
