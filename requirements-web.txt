@@ -1,0 +1,28 @@
+# A.L.F.R.E.D. Bat Cave Console Web Interface Requirements
+
+# Core web framework
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+jinja2>=3.1.2
+
+# WebSocket support
+websockets>=12.0
+
+# Static files handling
+aiofiles>=23.2.1
+
+# Existing requirements (for reference)
+# speech_recognition
+# pyttsx3
+# gtts
+# pygame
+# aiohttp
+# python-dotenv
+# openai
+# psutil
+
+# Development dependencies (optional)
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.9.0
+# flake8>=6.1.0
