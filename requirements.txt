@@ -1,0 +1,24 @@
+# Core web framework and API
+fastapi
+uvicorn
+pydantic
+
+# Voice interface dependencies
+SpeechRecognition
+pyttsx3
+gTTS
+pygame
+
+# HTTP client and web utilities
+aiohttp
+python-dotenv
+Jinja2
+
+# AI/ML integration
+openai
+
+# System monitoring and utilities
+psutil
+
+# Static file serving
+# Note: StaticFiles is part of fastapi, no separate install needed
