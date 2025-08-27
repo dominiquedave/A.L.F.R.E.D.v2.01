@@ -253,7 +253,7 @@ html, body {
 
 .title-icon, .title-wings {
     font-size: 2.5rem;
-    animation: flutter 4s ease-in-out infinite;
+    /* animation: flutter 4s ease-in-out infinite; */
 }
 
 .title-wings {
