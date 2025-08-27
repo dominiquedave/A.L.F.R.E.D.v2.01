@@ -1,3 +1,4 @@
+# Load environment variables for API keys and configuration
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -12,35 +13,56 @@ import socket
 import json
 import time
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
+# Configure logging for coordinator operations
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Coordinator:
     """
-    Central coordinator for managing agents, parsing commands, and delegating execution.
+    Central coordinator for managing distributed agents, parsing natural language commands, 
+    and delegating execution across multiple systems.
+    
+    This class serves as the brain of the A.L.F.R.E.D. system, handling:
+    - Agent discovery and registration
+    - Health monitoring and status tracking
+    - Natural language command parsing using OpenAI
+    - Command routing and execution
+    - Result aggregation and history tracking
     """
     def __init__(self):
-        # Registered agents by ID
+        # Dictionary storing all registered agents indexed by their unique ID
         self.agents: Dict[str, AgentInfo] = {}
-        # OpenAI client for command parsing
+        
+        # OpenAI client configured for OpenRouter API to parse natural language commands
+        # Uses environment variable OPENAI_API_KEY for authentication
         self.openai_client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv('OPENAI_API_KEY')
         )
-        # History of executed commands
+        
+        # Historical record of all executed commands for auditing and debugging
         self.command_history: List[Dict] = []
-        # Load discovery configuration
+        
+        # Configuration settings for agent discovery loaded from file or defaults
         self.discovery_config = self._load_discovery_config()
-        # Health check synchronization
+        
+        # Async lock to prevent concurrent health checks that could overwhelm agents
         self._health_check_lock = asyncio.Lock()
+        # Timestamp of last health check for rate limiting
         self._last_health_check = datetime.min
     
     def _load_discovery_config(self) -> Dict:
         """
-        Load agent discovery configuration from file or environment.
+        Load agent discovery configuration from JSON file or return sensible defaults.
+        
+        Attempts to load from 'agent_discovery.json' in the coordinator directory.
+        Falls back to default configuration if file doesn't exist or can't be parsed.
+        
+        Returns:
+            Dict: Configuration containing discovery settings and network configs
         """
         config_path = os.path.join(os.path.dirname(__file__), '..', 'agent_discovery.json')
         try:
@@ -52,20 +74,29 @@ class Coordinator:
         except Exception as e:
             logger.warning(f"Could not load discovery config: {e}")
         
-        # Return default config
+        # Return default configuration with sensible discovery settings
         return {
             "discovery_settings": {
-                "use_broadcast": True,
-                "scan_network": False,
-                "broadcast_port": 5099,
-                "scan_timeout": 3,
-                "manual_hosts": []
+                "use_broadcast": True,      # Enable UDP broadcast discovery
+                "scan_network": False,     # Disable network scanning by default
+                "broadcast_port": 5099,    # Port for agent discovery broadcasts
+                "scan_timeout": 3,         # Timeout for network operations
+                "manual_hosts": []         # List of manually specified agent hosts
             },
-            "network_configs": {}
+            "network_configs": {}          # Named network configurations
         }
     
     async def register_agent(self, agent_info: AgentInfo):
-        """Register a new agent"""
+        """
+        Register a new agent with the coordinator.
+        
+        Adds the agent to the internal registry, replacing any existing agent
+        with the same ID. This handles both new agent registration and
+        existing agent re-registration (e.g., after restart).
+        
+        Args:
+            agent_info (AgentInfo): Complete agent information including capabilities and endpoints
+        """
         if agent_info.id in self.agents:
             logger.warning(f"Agent {agent_info.id} already exists - replacing with new registration")
         
@@ -75,20 +106,27 @@ class Coordinator:
     
     def _get_local_network_range(self) -> List[str]:
         """
-        Get the local network range for scanning.
+        Generate a list of IP addresses in the local network for agent discovery.
+        
+        Determines the local machine's IP address and generates a list of potential
+        agent hosts within the same /24 subnet. Limits to first 20 hosts to avoid
+        excessive network traffic.
+        
+        Returns:
+            List[str]: List of IP addresses to scan for agents
         """
         try:
             # Get local IP address
             hostname = socket.gethostname()
             local_ip = socket.gethostbyname(hostname)
             
-            # Create network object (assuming /24 subnet)
+            # Create IPv4 network object assuming /24 subnet (most common for local networks)
             network = ipaddress.IPv4Network(f"{local_ip}/24", strict=False)
             
-            # Return first 20 IPs to avoid scanning entire subnet
+            # Return first 20 host IPs to avoid scanning entire subnet (performance optimization)
             ips = []
             for i, ip in enumerate(network.hosts()):
-                if i >= 20:  # Limit scan to first 20 hosts
+                if i >= 20:  # Limit scan to first 20 hosts to prevent network flooding
                     break
                 ips.append(str(ip))
             
@@ -99,17 +137,28 @@ class Coordinator:
 
     async def discover_agents_broadcast(self) -> List[str]:
         """
-        Discover agents using UDP broadcast.
-        Sends broadcast message and waits for agent responses.
+        Discover agents using UDP broadcast discovery protocol.
+        
+        Sends a broadcast message on the configured port and listens for responses
+        from agents. This is the most efficient discovery method as it doesn't
+        require knowing specific IP addresses.
+        
+        Protocol:
+        1. Send JSON broadcast message: {"type": "agent_discovery", "coordinator": "ALFRED"}
+        2. Listen for JSON responses: {"type": "agent_response", "port": 5001, ...}
+        3. Parse responses and return list of discovered agent endpoints
+        
+        Returns:
+            List[str]: List of "host:port" strings for discovered agents
         """
         discovered_hosts = []
         try:
-            # Create UDP socket for broadcast
+            # Create UDP socket configured for broadcast communication
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            sock.settimeout(3)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # Enable broadcast
+            sock.settimeout(3)  # Set 3-second timeout for receive operations
             
-            # Broadcast discovery message
+            # Create and send discovery message as JSON
             discovery_msg = json.dumps({"type": "agent_discovery", "coordinator": "ALFRED"})
             broadcast_port = self.discovery_config.get('discovery_settings', {}).get('broadcast_port', 5099)
             
@@ -123,14 +172,16 @@ class Coordinator:
                 logger.error(f"❌ Failed to send broadcast: {broadcast_error}")
                 return discovered_hosts
             
-            # Listen for responses
+            # Listen for agent responses with timeout handling
             start_time = time.time()
             response_count = 0
             logger.info(f"👂 Listening for agent responses for 3 seconds...")
             
-            while time.time() - start_time < 3:  # Listen for 3 seconds
+            # Listen for responses within 3-second window
+            while time.time() - start_time < 3:
                 try:
-                    data, addr = sock.recvfrom(1024)
+                    # Receive response data from any agent
+                    data, addr = sock.recvfrom(1024)  # 1KB buffer for response
                     response_count += 1
                     logger.info(f"📩 Received response #{response_count} from {addr[0]}:{addr[1]}")
                     logger.debug(f"Raw response data: {data.decode()}")
@@ -138,9 +189,10 @@ class Coordinator:
                     response = json.loads(data.decode())
                     logger.info(f"📋 Parsed response: {response}")
                     
+                    # Process valid agent responses
                     if response.get("type") == "agent_response":
-                        agent_port = response.get('port', 5001)
-                        agent_host = f"{addr[0]}:{agent_port}"
+                        agent_port = response.get('port', 5001)  # Default to port 5001
+                        agent_host = f"{addr[0]}:{agent_port}"   # Combine IP and port
                         discovered_hosts.append(agent_host)
                         agent_name = response.get('name', 'unknown')
                         agent_os = response.get('os_type', 'unknown')
@@ -171,8 +223,21 @@ class Coordinator:
 
     async def discover_agents(self, host_range: List[str] = None):
         """
-        Discover agents on the network by querying known host:port pairs.
-        Supports environment variables, network scanning, and manual host lists.
+        Comprehensive agent discovery using multiple methods and configurations.
+        
+        This is the main discovery method that orchestrates different discovery strategies:
+        1. Environment variable-based host lists (AGENT_DISCOVERY_HOSTS)
+        2. Named network configurations from config file
+        3. UDP broadcast discovery (if enabled)
+        4. Local network scanning (if enabled)
+        5. Default localhost fallback
+        
+        The method uses concurrent HTTP requests to check agent endpoints and
+        registers any responding agents with the coordinator.
+        
+        Args:
+            host_range (List[str], optional): Explicit list of "host:port" strings to check.
+                                            If None, uses configuration-based discovery.
         """
         logger.info("🚀 Starting agent discovery process...")
         logger.info(f"📋 Current discovery config: {self.discovery_config}")
@@ -261,17 +326,20 @@ class Coordinator:
         
         logger.info(f"🎯 Final discovery target list: {len(host_range)} hosts - {host_range}")
         
-        # Use semaphore to limit concurrent connections
-        semaphore = asyncio.Semaphore(10)
+        # Use semaphore to limit concurrent HTTP connections (prevent overwhelming network)
+        semaphore = asyncio.Semaphore(10)  # Maximum 10 concurrent agent checks
         
         async def check_host(host_port):
-            async with semaphore:
+            """Check a single host:port for an active agent"""
+            async with semaphore:  # Limit concurrent connections
                 try:
                     logger.info(f"🔍 Checking agent at {host_port}...")
                     async with aiohttp.ClientSession() as session:
+                        # Query agent's capabilities endpoint to verify it's an agent
                         url = f"http://{host_port}/capabilities"
                         logger.debug(f"📡 Making request to: {url}")
                         
+                        # Make HTTP request with 3-second timeout
                         async with session.get(url, timeout=3) as resp:
                             logger.debug(f"📊 Response from {host_port}: status={resp.status}")
                             
@@ -280,10 +348,12 @@ class Coordinator:
                                 logger.info(f"📋 Agent data received from {host_port}: {agent_data}")
                                 
                                 # Override agent's self-reported address with discovery address
+                                # This ensures we use the address that actually worked for discovery
                                 discovery_host, discovery_port = host_port.split(':')
                                 agent_data['host'] = discovery_host
                                 agent_data['port'] = int(discovery_port)
                                 
+                                # Create AgentInfo object and register with coordinator
                                 agent_info = AgentInfo(**agent_data)
                                 await self.register_agent(agent_info)
                                 logger.info(f"✅ Successfully found and registered agent at {host_port}")
@@ -323,13 +393,18 @@ class Coordinator:
     
     async def health_check_agents(self, force: bool = False):
         """
-        Check health of all registered agents by calling their /health endpoint.
-        Retry failed connections and only mark as unhealthy after multiple failures.
+        Perform health checks on all registered agents with retry logic and rate limiting.
+        
+        Contacts each agent's /health endpoint to verify they are still responsive.
+        Implements intelligent retry logic (3 attempts per agent) and only marks
+        agents as unhealthy after multiple consecutive failures. Uses rate limiting
+        to prevent excessive health checking.
         
         Args:
-            force: If True, bypass rate limiting and run check immediately
+            force (bool): If True, bypass 10-second rate limiting and run check immediately.
+                         Useful for on-demand health checks from UI or critical operations.
         """
-        async with self._health_check_lock:
+        async with self._health_check_lock:  # Ensure only one health check runs at a time
             # Rate limiting: don't check more than once per 10 seconds unless forced
             time_since_last_check = datetime.now() - self._last_health_check
             if not force and time_since_last_check < timedelta(seconds=10):
@@ -339,26 +414,29 @@ class Coordinator:
             logger.debug("Starting health check of all agents...")
             self._last_health_check = datetime.now()
             
+            # Iterate over copy of agents dict to handle concurrent modifications
             for agent_id, agent_info in list(self.agents.items()):
                 health_check_passed = False
                 
-                # Try health check with retry logic
-                for attempt in range(3):  # Try up to 3 times
+                # Try health check with retry logic (3 attempts with 1-second delays)
+                for attempt in range(3):
                     try:
                         async with aiohttp.ClientSession() as session:
                             url = f"http://{agent_info.host}:{agent_info.port}/health"
                             logger.debug(f"Health check attempt {attempt + 1}/3 for agent {agent_id} at {url}")
                             
+                            # Health check with 5-second timeout per attempt
                             async with session.get(url, timeout=5) as resp:
                                 if resp.status == 200:
                                     health_data = await resp.json()
                                     logger.debug(f"Agent {agent_id} health check passed: {health_data.get('status', 'unknown')}")
                                     
-                                    if agent_id in self.agents:  # Double-check agent still exists
+                                    # Update agent status if it still exists in registry
+                                    if agent_id in self.agents:
                                         self.agents[agent_id].is_healthy = True
                                         self.agents[agent_id].last_seen = datetime.now()
                                     health_check_passed = True
-                                    break
+                                    break  # Exit retry loop on success
                                 else:
                                     logger.warning(f"Agent {agent_id} health check returned status {resp.status}")
                                     
@@ -412,11 +490,28 @@ class Coordinator:
     
     async def parse_command(self, user_input: str) -> Dict:
         """
-        Use OpenAI to parse a natural language command into a structured format.
+        Parse natural language commands into structured format using OpenAI.
+        
+        Takes user input in natural language and converts it into a structured
+        command format that can be executed by agents. Uses OpenRouter API with
+        Google's Gemma model for cost-effective parsing.
+        
+        The parsing prompt guides the AI to:
+        - Identify the type of operation (file_operations, process_info, system_info)
+        - Determine target OS compatibility (windows, linux, any)
+        - Generate the actual shell command to execute
+        - Provide a human-readable description of the operation
+        
+        Args:
+            user_input (str): Natural language command from user
+            
+        Returns:
+            Dict: Structured command with keys: action, target_os, command, description
         """
         try:
+            # Create OpenAI chat completion request for command parsing
             response = self.openai_client.chat.completions.create(
-                model="google/gemma-3n-e2b-it:free",
+                model="google/gemma-3n-e2b-it:free",  # Free Google Gemma model via OpenRouter
                 messages=[
                     {
                         "role": "user", 
@@ -441,29 +536,32 @@ class Coordinator:
                         Remember: Respond with ONLY the JSON object, no other text."""
                     }
                 ],
-                max_tokens=200,
-                temperature=0.1
+                max_tokens=200,    # Limit response length for cost control
+                temperature=0.1    # Low temperature for consistent, deterministic parsing
             )
             
             content = response.choices[0].message.content.strip()
             
-            # Log the raw response for debugging
+            # Log the raw AI response for debugging purposes
             logger.debug(f"Raw AI response: {content}")
             
-            # Handle empty response
+            # Handle empty response from AI model
             if not content:
                 raise ValueError("Empty response from AI model")
             
-            # Try to extract JSON if response has extra text
+            # Clean up response if it contains markdown JSON blocks
             if content.startswith('```json'):
                 content = content.replace('```json', '').replace('```', '').strip()
             
+            # Parse the JSON response from the AI model
             import json
             return json.loads(content)
         
         except json.JSONDecodeError as e:
+            # Handle malformed JSON responses from AI model
             logger.error(f"JSON parsing failed. Raw response: {response.choices[0].message.content}")
             logger.error(f"JSON error: {e}")
+            # Fallback to direct command execution
             return {
                 "action": "unknown",
                 "target_os": "any", 
@@ -471,7 +569,9 @@ class Coordinator:
                 "description": "Direct command execution (JSON parse failed)"
             }
         except Exception as e:
+            # Handle any other errors in command parsing (API failures, etc.)
             logger.error(f"Command parsing failed: {e}")
+            # Fallback to direct command execution
             return {
                 "action": "unknown",
                 "target_os": "any",
@@ -481,39 +581,69 @@ class Coordinator:
     
     def select_agent(self, parsed_command: Dict) -> Optional[AgentInfo]:
         """
-        Select the best agent for a command based on OS and health.
+        Select the optimal agent to execute a parsed command.
+        
+        Uses intelligent agent selection based on:
+        1. Agent health status (only healthy agents considered)
+        2. OS compatibility (matches target_os if specified)
+        3. Available capabilities (future enhancement)
+        4. Load balancing (currently simple first-match selection)
+        
+        Args:
+            parsed_command (Dict): Parsed command containing target_os and action
+            
+        Returns:
+            Optional[AgentInfo]: Selected agent info, or None if no suitable agent found
         """
         target_os = parsed_command.get("target_os", "any")
         action = parsed_command.get("action", "")
         
-        # Filter healthy agents
+        # Filter to only healthy agents that can accept commands
         healthy_agents = [agent for agent in self.agents.values() if agent.is_healthy]
         
         if not healthy_agents:
+            logger.warning("No healthy agents available for command execution")
             return None
         
-        # OS-specific selection
+        # Prefer OS-specific agents if target OS is specified
         if target_os != "any":
             os_agents = [agent for agent in healthy_agents if agent.os_type.lower() == target_os.lower()]
             if os_agents:
-                return os_agents[0]  # Simple selection - improve with load balancing
+                # TODO: Implement load balancing instead of simple first-match
+                return os_agents[0]
+            else:
+                logger.warning(f"No healthy {target_os} agents found, will try any available agent")
         
-        # Return first healthy agent
+        # Fallback to first available healthy agent
         return healthy_agents[0]
     
     async def execute_command(self, user_input: str) -> CommandResult:
         """
-        Main command execution flow: parse, select agent, send command, return result.
+        Execute a natural language command through the complete A.L.F.R.E.D. pipeline.
+        
+        This is the main entry point for command execution that orchestrates:
+        1. Natural language parsing (convert to structured command)
+        2. Agent selection (find best agent for the command)
+        3. Command transmission (send HTTP request to selected agent)
+        4. Result processing (parse response and store in history)
+        5. Error handling (graceful failure with informative messages)
+        
+        Args:
+            user_input (str): Natural language command from user
+            
+        Returns:
+            CommandResult: Execution result including success status, output, timing, etc.
         """
         logger.info(f"Executing command: {user_input}")
 
-        # Parse the command
+        # Step 1: Parse natural language into structured command
         parsed_command = await self.parse_command(user_input)
         logger.info(f"Parsed command: {parsed_command}")
 
-        # Select agent
+        # Step 2: Select best available agent for this command
         agent = self.select_agent(parsed_command)
         if not agent:
+            # No suitable agents available - return error result
             return CommandResult(
                 success=False,
                 error="No healthy agents available",
@@ -522,7 +652,7 @@ class Coordinator:
                 agent_id="none"
             )
 
-        # Execute on selected agent
+        # Step 3: Create message object for agent communication
         message = Message(
             type=MessageType.COMMAND,
             source="coordinator",
@@ -531,14 +661,16 @@ class Coordinator:
         )
 
         try:
+            # Step 4: Send HTTP request to selected agent's execute endpoint
             async with aiohttp.ClientSession() as session:
                 url = f"http://{agent.host}:{agent.port}/execute"
                 async with session.post(url, json=message.model_dump(mode='json')) as resp:
                     if resp.status == 200:
+                        # Parse successful response into CommandResult object
                         result_data = await resp.json()
                         result = CommandResult(**result_data)
 
-                        # Store in history
+                        # Step 5: Store execution details in command history for auditing
                         self.command_history.append({
                             "timestamp": datetime.now().isoformat(),
                             "user_input": user_input,
