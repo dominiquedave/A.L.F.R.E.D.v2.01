@@ -6,7 +6,7 @@ pydantic
 # Voice interface dependencies
 SpeechRecognition
 pyttsx3
-gTTS
+boto3
 pygame
 
 # HTTP client and web utilities
