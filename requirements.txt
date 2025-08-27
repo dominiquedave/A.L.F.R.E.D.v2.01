@@ -8,6 +8,7 @@ SpeechRecognition
 pyttsx3
 boto3
 pygame
+PyAudio
 
 # HTTP client and web utilities
 aiohttp

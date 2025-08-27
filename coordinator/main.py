@@ -7,6 +7,9 @@ import sys
 import os
 import argparse
 import uvicorn
+import webbrowser
+import threading
+import time
 
 # Add project root to Python path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -106,6 +109,22 @@ async def main():
             )
             server = uvicorn.Server(config)
             print(f"🦇 Bat Cave Console starting at http://{args.host}:{args.web_port}")
+            
+            # Launch browser automatically in hybrid mode after a short delay
+            if args.mode == 'hybrid':
+                def launch_browser():
+                    time.sleep(3)  # Wait 3 seconds for server to fully start
+                    browser_url = f"http://127.0.0.1:{args.web_port}"
+                    print(f"🌐 Launching browser at {browser_url}")
+                    try:
+                        webbrowser.open(browser_url)
+                    except Exception as e:
+                        print(f"⚠️ Could not launch browser automatically: {e}")
+                
+                # Launch browser in background thread
+                browser_thread = threading.Thread(target=launch_browser, daemon=True)
+                browser_thread.start()
+            
             await server.serve()
         
         tasks.append(run_web_server())

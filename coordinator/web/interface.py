@@ -78,10 +78,7 @@ class WebInterface:
             Returns:
                 TemplateResponse: Rendered dashboard.html with context data
             """
-            # Force immediate health check for accurate dashboard data
-            await self.coordinator.health_check_agents(force=True)
-            
-            # Calculate agent statistics
+            # Calculate agent statistics from current data (no forced health check to avoid conflicts)
             healthy_agents = [agent for agent in self.coordinator.agents.values() if agent.is_healthy]
             total_agents = len(self.coordinator.agents)
             
@@ -154,10 +151,8 @@ class WebInterface:
             Returns:
                 JSONResponse: Agent status data with health counts and agent details
             """
-            # Perform fresh health checks for accurate status
-            await self.coordinator.health_check_agents(force=True)
-            
-            # Build detailed agent information for web UI
+            # Build detailed agent information for web UI (use existing data to avoid conflicts)
+            # Note: Periodic background task handles regular health checks
             agents_data = []
             for agent in self.coordinator.agents.values():
                 agents_data.append({
@@ -292,12 +287,18 @@ class WebInterface:
         Start background task for periodic web interface updates.
         
         Runs continuously to provide regular status updates to web clients:
-        - Performs health checks on all agents every 30 seconds
+        - Waits 1 minute before starting health checks to avoid startup conflicts
+        - Performs health checks on all agents every 60 seconds
         - Broadcasts agent status updates via WebSocket
         - Maintains real-time dashboard information
         
         This task runs in the background alongside the web server.
         """
+        # Wait 1 minute before starting periodic health checks to avoid conflicts during startup
+        logger.info("Web interface waiting 60 seconds before starting periodic health checks...")
+        await asyncio.sleep(60)
+        logger.info("Web interface starting periodic health checks (every 60 seconds)")
+        
         while True:
             try:
                 # Perform routine health checks (respects rate limiting)
@@ -311,10 +312,10 @@ class WebInterface:
                     "timestamp": datetime.now().isoformat()
                 })
                 
-                # Wait 30 seconds before next update cycle
-                await asyncio.sleep(30)
+                # Wait 60 seconds before next update cycle
+                await asyncio.sleep(60)
                 
             except Exception as e:
                 # Handle errors gracefully and continue periodic updates
                 logger.error(f"Periodic update error: {e}")
-                await asyncio.sleep(30)  # Still wait before retry
+                await asyncio.sleep(60)  # Still wait before retry

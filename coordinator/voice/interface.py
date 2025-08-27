@@ -6,6 +6,7 @@ import boto3  # Amazon Web Services SDK for Polly TTS
 import pygame                     # Audio playback for TTS
 import os
 import platform
+import asyncio                    # For non-blocking async operations
 from coordinator.core.coordinator import Coordinator
 import logging
 
@@ -146,7 +147,7 @@ class VoiceInterface:
 """
         print(startup_art)
     
-    def listen_for_command(self, timeout=10) -> Optional[str]:
+    async def listen_for_command(self, timeout=10) -> Optional[str]:
         """
         Listen for voice commands using speech recognition with Batman-themed feedback.
         
@@ -164,15 +165,19 @@ class VoiceInterface:
             # Atmospheric listening prompt
             print(f"{BatColors.BAT_INFO}🦇 The bats are listening... Speak your command{BatColors.RESET}")
             
-            # Capture audio with timeout and phrase limits
-            with self.microphone as source:
-                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=5)
+            def capture_audio():
+                # Capture audio with timeout and phrase limits
+                with self.microphone as source:
+                    return self.recognizer.listen(source, timeout=timeout, phrase_time_limit=5)
+            
+            # Run audio capture in thread pool to avoid blocking
+            audio = await asyncio.to_thread(capture_audio)
             
             # Processing feedback with Batman theme
             print(f"{BatColors.BAT_WARNING}🌙 Processing your dark whispers...{BatColors.RESET}")
             
-            # Use Google Speech Recognition for high accuracy
-            command = self.recognizer.recognize_google(audio)
+            # Use Google Speech Recognition for high accuracy (also in thread pool)
+            command = await asyncio.to_thread(self.recognizer.recognize_google, audio)
             
             # Success feedback with recognized command
             print(f"{BatColors.BAT_SUCCESS}✨ Command received: {BatColors.CYAN}'{command}'{BatColors.RESET}")
@@ -233,9 +238,22 @@ class VoiceInterface:
             audio_stream = response['AudioStream']
             
             # Save temporary audio file and play with pygame
-            temp_file = '/tmp/polly_speech.mp3'
-            with open(temp_file, 'wb') as f:
-                f.write(audio_stream.read())
+            import tempfile
+            try:
+                # Try /tmp first, then fallback to system temp with unique filename
+                if os.path.exists('/tmp') and os.access('/tmp', os.W_OK):
+                    temp_file = '/tmp/polly_speech.mp3'
+                else:
+                    # Use tempfile to create a unique, writable temporary file
+                    temp_fd, temp_file = tempfile.mkstemp(suffix='.mp3', prefix='polly_speech_')
+                    os.close(temp_fd)  # Close the file descriptor, we'll reopen for writing
+                
+                with open(temp_file, 'wb') as f:
+                    f.write(audio_stream.read())
+            except PermissionError as e:
+                logger.error(f"Permission denied writing audio file: {e}")
+                print(f"{BatColors.BAT_ERROR}🔇 Cannot write audio file, using text only{BatColors.RESET}")
+                return
             
             # Play audio using pygame
             pygame.mixer.music.load(temp_file)
@@ -325,16 +343,18 @@ class VoiceInterface:
         while True:
             try:
                 # Listen for voice input with Batman-themed prompts
-                command = self.listen_for_command()
+                command = await self.listen_for_command()
                 
                 # Skip if no command detected (timeout, etc.)
                 if not command:
+                    # Add small async sleep to yield control and prevent blocking
+                    await asyncio.sleep(0.1)
                     continue
                 
                 # Handle exit commands with atmospheric Batman theme
                 if command.lower() in ['exit', 'quit', 'stop', 'return to shadows', 'goodbye']:
-                    print(f"{BatColors.BAT_SUCCESS}🌙 Returning to the darkness...{BatColors.RESET}")
-                    self.speak_response("The darkness calls me back. Until we meet again in the shadows.")
+                    print(f"{BatColors.BAT_SUCCESS}🌙 Voice interface returning to the darkness...{BatColors.RESET}")
+                    self.speak_response("Voice interface returning to the shadows. The web console remains active.")
                     break
                 
                 # Handle status/agent information commands with Batman theme
@@ -390,6 +410,9 @@ class VoiceInterface:
                 
                 # Visual separator between commands for better readability
                 print(f"{BatColors.BAT_PROMPT}─────────────────────────────────────────────────────────────────────{BatColors.RESET}")
+                
+                # Yield control to allow other async tasks to run
+                await asyncio.sleep(0.1)
             
             except KeyboardInterrupt:
                 # Handle Ctrl+C gracefully with Batman theme
