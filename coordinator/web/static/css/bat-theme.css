@@ -1,28 +1,42 @@
 /* A.L.F.R.E.D. Bat Cave Theme CSS */
 
+@font-face {
+    font-family: 'Batman Forever';
+    src: url('../fonts/batmfa__.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Batman Forever';
+    src: url('../fonts/batmfo__.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 :root {
     /* Bat Cave Color Palette */
     --bat-black: #0B0B0B;
-    --bat-dark-purple: #2D1B69;
-    --bat-purple: #6A0DAD;
-    --bat-light-purple: #8A2BE2;
+    --bat-dark-blue: #1b2b69;
+    --bat-blue: #100dad;
+    --bat-light-blue: #2b31e2;
     --bat-silver: #C0C0C0;
     --bat-dark-silver: #A0A0A0;
     --bat-blood-red: #8B0000;
     --bat-dark-red: #660000;
-    --bat-cave-green: #006400;
+    --bat-cave-green: #216400;
     --bat-electric: #00FFFF;
-    --bat-midnight: #191970;
+    --bat-midnight: #201970;
     
     /* Typography */
-    --font-gothic: 'Creepster', cursive;
+    --font-gothic: 'Batman Forever', cursive;
     --font-tech: 'Orbitron', monospace;
     --font-horror: 'Nosifer', cursive;
     
     /* Shadows and Effects */
-    --bat-shadow: 0 0 20px rgba(106, 13, 173, 0.5);
+    --bat-shadow: 0 0 20px rgba(13, 42, 173, 0.5);
     --bat-glow: 0 0 10px rgba(192, 192, 192, 0.3);
-    --bat-pulse: 0 0 15px rgba(106, 13, 173, 0.7);
+    --bat-pulse: 0 0 15px rgba(13, 29, 173, 0.7);
 }
 
 /* Global Styles */
@@ -38,7 +52,7 @@ html, body {
 }
 
 .bat-cave-body {
-    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-purple) 50%, var(--bat-black) 100%);
+    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-blue) 50%, var(--bat-black) 100%);
     color: var(--bat-silver);
     font-family: var(--font-tech);
     font-size: 14px;
@@ -78,7 +92,7 @@ html, body {
 .bat {
     position: absolute;
     font-size: 20px;
-    color: var(--bat-dark-purple);
+    color: var(--bat-dark-blue);
     opacity: 0.3;
     animation: fly-around 20s linear infinite;
 }
@@ -99,8 +113,8 @@ html, body {
 
 /* Navigation */
 .bat-nav {
-    background: linear-gradient(90deg, var(--bat-black) 0%, var(--bat-dark-purple) 50%, var(--bat-black) 100%);
-    border-bottom: 2px solid var(--bat-purple);
+    background: linear-gradient(90deg, var(--bat-black) 0%, var(--bat-dark-blue) 50%, var(--bat-black) 100%);
+    border-bottom: 2px solid var(--bat-blue);
     box-shadow: var(--bat-shadow);
     position: sticky;
     top: 0;
@@ -166,13 +180,13 @@ html, body {
 }
 
 .nav-link:hover {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     box-shadow: var(--bat-pulse);
     transform: translateY(-2px);
 }
 
 .nav-link.active {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     color: white;
     box-shadow: var(--bat-pulse);
 }
@@ -225,9 +239,9 @@ html, body {
     text-align: center;
     margin-bottom: 3rem;
     padding: 2rem;
-    background: linear-gradient(45deg, var(--bat-black), var(--bat-dark-purple));
+    background: linear-gradient(45deg, var(--bat-black), var(--bat-dark-blue));
     border-radius: 15px;
-    border: 1px solid var(--bat-purple);
+    border: 1px solid var(--bat-blue);
     box-shadow: var(--bat-shadow);
 }
 
@@ -275,8 +289,8 @@ html, body {
 
 /* Cards */
 .dashboard-card {
-    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-purple) 100%);
-    border: 1px solid var(--bat-purple);
+    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-blue) 100%);
+    border: 1px solid var(--bat-blue);
     border-radius: 15px;
     box-shadow: var(--bat-shadow);
     overflow: hidden;
@@ -285,11 +299,11 @@ html, body {
 
 .dashboard-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(106, 13, 173, 0.7);
+    box-shadow: 0 10px 30px rgba(34, 13, 173, 0.7);
 }
 
 .card-header {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     padding: 1rem 1.5rem;
     display: flex;
     justify-content: space-between;
@@ -352,7 +366,7 @@ html, body {
 
 .stat-divider {
     font-size: 2rem;
-    color: var(--bat-purple);
+    color: var(--bat-blue);
 }
 
 .health-bar {
@@ -360,7 +374,7 @@ html, body {
     height: 10px;
     border-radius: 5px;
     overflow: hidden;
-    border: 1px solid var(--bat-purple);
+    border: 1px solid var(--bat-blue);
 }
 
 .health-fill {
@@ -395,14 +409,14 @@ html, body {
     display: flex;
     align-items: center;
     background: var(--bat-black);
-    border: 1px solid var(--bat-purple);
+    border: 1px solid var(--bat-blue);
     border-radius: 8px;
     overflow: hidden;
 }
 
 .input-prompt {
     padding: 1rem;
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     color: white;
     font-family: var(--font-tech);
     font-weight: bold;
@@ -428,7 +442,7 @@ html, body {
 
 .execute-btn {
     padding: 1rem 1.5rem;
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     border: none;
     color: white;
     font-family: var(--font-tech);
@@ -441,7 +455,7 @@ html, body {
 }
 
 .execute-btn:hover {
-    background: var(--bat-light-purple);
+    background: var(--bat-light-blue);
     box-shadow: var(--bat-pulse);
 }
 
@@ -457,7 +471,7 @@ html, body {
 /* Command Output */
 .command-output {
     background: var(--bat-black);
-    border: 1px solid var(--bat-dark-purple);
+    border: 1px solid var(--bat-dark-blue);
     border-radius: 8px;
     padding: 1rem;
     min-height: 300px;
@@ -493,7 +507,7 @@ html, body {
 }
 
 .output-line.welcome {
-    color: var(--bat-purple);
+    color: var(--bat-blue);
     font-style: italic;
 }
 
@@ -531,8 +545,8 @@ html, body {
 }
 
 .agent-card {
-    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-purple) 100%);
-    border: 1px solid var(--bat-purple);
+    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-blue) 100%);
+    border: 1px solid var(--bat-blue);
     border-radius: 12px;
     padding: 1.5rem;
     transition: all 0.3s ease;
@@ -572,7 +586,7 @@ html, body {
     gap: 1rem;
     margin-bottom: 1rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid var(--bat-purple);
+    border-bottom: 1px solid var(--bat-blue);
 }
 
 .agent-avatar {
@@ -582,7 +596,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     border-radius: 50%;
     box-shadow: var(--bat-glow);
 }
@@ -637,7 +651,7 @@ html, body {
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 0;
-    border-bottom: 1px solid rgba(106, 13, 173, 0.2);
+    border-bottom: 1px solid rgba(13, 21, 173, 0.2);
 }
 
 .detail-row:last-child {
@@ -662,7 +676,7 @@ html, body {
 }
 
 .capability-tag {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     color: white;
     padding: 0.3rem 0.6rem;
     border-radius: 15px;
@@ -675,8 +689,8 @@ html, body {
 .empty-state {
     text-align: center;
     padding: 4rem 2rem;
-    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-purple) 100%);
-    border: 1px solid var(--bat-purple);
+    background: linear-gradient(135deg, var(--bat-black) 0%, var(--bat-dark-blue) 100%);
+    border: 1px solid var(--bat-blue);
     border-radius: 15px;
     box-shadow: var(--bat-shadow);
 }
@@ -702,7 +716,7 @@ html, body {
 }
 
 .btn-primary {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     color: white;
     border: none;
     padding: 1rem 2rem;
@@ -718,7 +732,7 @@ html, body {
 }
 
 .btn-primary:hover {
-    background: var(--bat-light-purple);
+    background: var(--bat-light-blue);
     box-shadow: var(--bat-pulse);
     transform: translateY(-2px);
 }
@@ -726,7 +740,7 @@ html, body {
 /* Command History */
 .commands-history {
     background: var(--bat-black);
-    border: 1px solid var(--bat-purple);
+    border: 1px solid var(--bat-blue);
     border-radius: 12px;
     padding: 1.5rem;
     max-height: 400px;
@@ -735,7 +749,7 @@ html, body {
 
 .history-item {
     padding: 1rem;
-    border-left: 3px solid var(--bat-purple);
+    border-left: 3px solid var(--bat-blue);
     margin-bottom: 1rem;
     background: rgba(45, 27, 105, 0.1);
     border-radius: 0 8px 8px 0;
@@ -763,7 +777,7 @@ html, body {
 }
 
 .history-agent {
-    color: var(--bat-purple);
+    color: var(--bat-blue);
     font-weight: 600;
 }
 
@@ -792,8 +806,8 @@ html, body {
 
 /* Status Bar */
 .status-bar {
-    background: linear-gradient(90deg, var(--bat-black) 0%, var(--bat-dark-purple) 50%, var(--bat-black) 100%);
-    border-top: 1px solid var(--bat-purple);
+    background: linear-gradient(90deg, var(--bat-black) 0%, var(--bat-dark-blue) 50%, var(--bat-black) 100%);
+    border-top: 1px solid var(--bat-blue);
     padding: 1rem 2rem;
     position: sticky;
     bottom: 0;
@@ -835,7 +849,7 @@ html, body {
 }
 
 .notification {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     color: white;
     padding: 1rem 1.5rem;
     border-radius: 8px;
@@ -868,12 +882,12 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--bat-purple);
+    background: var(--bat-blue);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--bat-light-purple);
+    background: var(--bat-light-blue);
 }
 
 /* Responsive Design */
