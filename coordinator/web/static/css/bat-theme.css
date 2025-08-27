@@ -141,7 +141,7 @@ html, body {
 }
 
 .nav-title {
-    font-family: var(--font-gothic);
+    font-family: var(--font-tech);
     font-size: 2rem;
     color: var(--bat-electric);
     text-shadow: var(--bat-glow);
