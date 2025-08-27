@@ -2,10 +2,8 @@
 from typing import Optional
 import speech_recognition as sr    # Google Speech Recognition for voice input
 import pyttsx3                    # Text-to-speech library (offline)
-from gtts import gTTS             # Google Text-to-Speech (online, better quality)
+import boto3  # Amazon Web Services SDK for Polly TTS
 import pygame                     # Audio playback for TTS
-import io
-import asyncio
 import os
 import platform
 from coordinator.core.coordinator import Coordinator
@@ -51,7 +49,7 @@ class VoiceInterface:
     Provides a complete voice-controlled interface with:
     - Speech recognition using Google's speech-to-text API
     - Natural language command processing through coordinator
-    - High-quality text-to-speech responses using Google TTS
+    - High-quality text-to-speech responses using Amazon Polly
     - Batman/Bat Cave themed console output and ASCII art
     - Atmospheric voice prompts and responses
     
@@ -81,6 +79,30 @@ class VoiceInterface:
         
         # Initialize pygame mixer for TTS audio playback
         pygame.mixer.init()
+        
+        # Initialize Amazon Polly configuration
+        # These should be set as environment variables for security
+        aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        aws_region = os.getenv('AWS_REGION', 'us-east-1')
+        
+        if aws_access_key and aws_secret_key:
+            try:
+                self.polly_client = boto3.Session(
+                    aws_access_key_id=aws_access_key,
+                    aws_secret_access_key=aws_secret_key,
+                    region_name=aws_region
+                ).client('polly')
+                
+                # Use British male neural voice (Brian - mature British male voice)
+                self.voice_id = 'Brian'
+                logger.info("Amazon Polly TTS initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Amazon Polly: {e}")
+                self.polly_client = None
+        else:
+            logger.warning("AWS credentials not found. TTS will be disabled.")
+            self.polly_client = None
         
         # Calibrate microphone for ambient noise (improves recognition accuracy)
         with self.microphone as source:
@@ -177,11 +199,11 @@ class VoiceInterface:
     
     def speak_response(self, text: str):
         """
-        Convert text to high-quality speech using Google Text-to-Speech.
+        Convert text to high-quality speech using Amazon Polly.
         
-        Uses Google's TTS service for natural-sounding voice output with
-        Batman-themed console feedback. Falls back gracefully to text-only
-        output if speech synthesis fails (network issues, etc.).
+        Uses Amazon Polly's TTS service with British male neural voice for natural-sounding
+        voice output with Batman-themed console feedback. Falls back gracefully to 
+        text-only output if speech synthesis fails or Polly is not configured.
         
         Args:
             text (str): Text to convert to speech and speak
@@ -190,25 +212,42 @@ class VoiceInterface:
         print(f"{BatColors.BAT_PROMPT}🦇 A.L.F.R.E.D. speaks from the shadows:{BatColors.RESET}")
         print(f"{BatColors.BAT_SUCCESS}💬 {text}{BatColors.RESET}")
         
+        # Skip TTS if Amazon Polly is not configured
+        if not self.polly_client:
+            print(f"{BatColors.BAT_WARNING}🔇 Amazon Polly not configured, using text only{BatColors.RESET}")
+            return
+        
         try:
-            # Generate high-quality speech using Google TTS
-            tts = gTTS(text=text, lang='en')
-            
-            # Store MP3 audio in memory (avoid temporary files)
-            mp3_fp = io.BytesIO()
-            tts.write_to_fp(mp3_fp)
-            mp3_fp.seek(0)  # Reset buffer position for reading
-            
-            # Load and play audio using pygame mixer
-            pygame.mixer.music.load(mp3_fp)
-            pygame.mixer.music.play()
+            # Generate high-quality speech using Amazon Polly (British male neural voice)
+            response = self.polly_client.synthesize_speech(
+                Text=text,
+                OutputFormat='mp3',
+                VoiceId=self.voice_id,
+                Engine='neural'  # Use neural engine for higher quality
+            )
             
             # Atmospheric playback feedback
             print(f"{BatColors.BAT_INFO}🔊 Echoing through the bat cave...{BatColors.RESET}")
             
-            # Block until audio playback completes
+            # Get audio stream from Polly response
+            audio_stream = response['AudioStream']
+            
+            # Save temporary audio file and play with pygame
+            temp_file = '/tmp/polly_speech.mp3'
+            with open(temp_file, 'wb') as f:
+                f.write(audio_stream.read())
+            
+            # Play audio using pygame
+            pygame.mixer.music.load(temp_file)
+            pygame.mixer.music.play()
+            
+            # Wait for playback to complete
             while pygame.mixer.music.get_busy():
-                pygame.time.wait(100)  # Check every 100ms
+                pygame.time.wait(100)
+            
+            # Clean up temporary file
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
                 
         except Exception as e:
             # Handle TTS failures gracefully (network issues, etc.)
