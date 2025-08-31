@@ -45,7 +45,7 @@
     <div class="dashboard-card voice-visualizer-card">
         <div class="card-header">
             <h3 class="card-title">
-                <span class="card-icon">🎵</span>
+                <img src="/static/logos/voice-recognition-svgrepo-com(1).svg" class="card-icon" alt="voice" style="width: 2.3em; height: 2.3em; display: inline-block; vertical-align: middle;">
                 Voice Resonance
             </h3>
             <div class="visualizer-controls">
@@ -75,7 +75,7 @@
 <!-- Agent Details Grid -->
 <div class="dashboard-section">
     <h3 class="section-title">
-        <span class="section-icon">👥</span>
+        <img src="/static/logos/phoenix-squadron-svgrepo-com(1).svg" class="section-icon" alt="squadron" style="width: 2em; height: 2em; display: inline-block; vertical-align: middle;">
         Colony Members
     </h3>
     
@@ -127,11 +127,13 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <div class="empty-icon">🦇</div>
+        <div class="empty-icon">
+            <img src="/static/logos/bat-in-medium-size-variant-silhouette-svgrepo-com(1).svg" alt="No bats" style="width: 4em; height: 4em;">
+        </div>
         <h3>No Bats in the Cave</h3>
         <p>Your colony appears to be empty. Click "Scan Territory" to discover available agents.</p>
         <button onclick="discoverAgents()" class="btn-primary">
-            <span class="btn-icon">🔍</span>
+            <img src="/static/logos/scan-2-svgrepo-com(1).svg" class="btn-icon" alt="scan" style="width: 2em; height: 2em; display: inline-block; vertical-align: middle;">
             Scan for Bats
         </button>
     </div>

@@ -69,8 +69,19 @@ class VoiceVisualizer {
             this.canvas.height = rect.height * dpr;
             
             this.ctx.scale(dpr, dpr);
+            
+            // Preserve existing CSS styles while setting dimensions
+            const currentStyle = window.getComputedStyle(this.canvas);
             this.canvas.style.width = rect.width + 'px';
             this.canvas.style.height = rect.height + 'px';
+            
+            // Ensure centering styles are maintained
+            if (currentStyle.display !== 'block') {
+                this.canvas.style.display = 'block';
+            }
+            if (currentStyle.marginLeft === '0px' && currentStyle.marginRight === '0px') {
+                this.canvas.style.margin = '0 auto';
+            }
             
             // Update center and max radius based on canvas size
             this.centerX = rect.width / 2;

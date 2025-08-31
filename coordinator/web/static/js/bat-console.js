@@ -297,15 +297,6 @@ class BatConsole {
     }
     
     addAtmosphericEffects() {
-        // Add subtle screen flicker
-        setInterval(() => {
-            if (Math.random() < 0.02) { // 2% chance every 100ms
-                document.body.style.filter = 'brightness(1.1)';
-                setTimeout(() => {
-                    document.body.style.filter = '';
-                }, 50);
-            }
-        }, 100);
         
         // Add floating particles
         this.createFloatingParticles();
