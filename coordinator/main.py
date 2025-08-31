@@ -110,8 +110,8 @@ async def main():
             server = uvicorn.Server(config)
             print(f"🦇 Bat Cave Console starting at http://{args.host}:{args.web_port}")
             
-            # Launch browser automatically in hybrid mode after a short delay
-            if args.mode == 'hybrid':
+            # Launch browser automatically in web and hybrid modes after a short delay
+            if args.mode in ['web', 'hybrid']:
                 def launch_browser():
                     time.sleep(3)  # Wait 3 seconds for server to fully start
                     browser_url = f"http://127.0.0.1:{args.web_port}"
