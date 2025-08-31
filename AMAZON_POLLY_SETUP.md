@@ -72,7 +72,7 @@ python test_polly.py
 
 This script will:
 1. ✅ Test AWS connection
-2. ✅ Verify credentials  
+2. ✅ Verify credentials
 3. ✅ Test speech synthesis
 4. ✅ Test audio playback
 5. ✅ Clean up temporary files
@@ -143,7 +143,7 @@ The voice interface typically uses ~50-100 characters per response.
 
 Popular male voices for Batman-themed interface:
 - **Brian** (British male, neural) - Currently used
-- **Matthew** (US male, neural)  
+- **Matthew** (US male, neural)
 - **Arthur** (British male, neural)
 - **Daniel** (German male, neural)
 
@@ -170,7 +170,7 @@ To change voice, edit `self.voice_id = 'Brian'` in `coordinator/voice/interface.
 AZURE_SPEECH_KEY='...'
 AZURE_SPEECH_REGION='eastus'
 
-# New (Amazon Polly)  
+# New (Amazon Polly)
 AWS_ACCESS_KEY_ID='...'
 AWS_SECRET_ACCESS_KEY='...'
 AWS_REGION='us-east-1'

@@ -78,7 +78,7 @@
         <img src="/static/logos/phoenix-squadron-svgrepo-com(1).svg" class="section-icon" alt="squadron" style="width: 2em; height: 2em; display: inline-block; vertical-align: middle;">
         Colony Members
     </h3>
-    
+
     {% if agents %}
     <div class="agents-grid">
         {% for agent in agents %}
@@ -147,7 +147,7 @@
         <span class="section-icon">📜</span>
         Recent Dark Deeds
     </h3>
-    
+
     <div class="commands-history">
         {% for cmd in recent_commands %}
         <div class="history-item {{ 'success' if cmd.result.success else 'error' }}">
@@ -187,17 +187,17 @@ document.addEventListener('DOMContentLoaded', function() {
             centerRadius: 25,
             maxRadius: 120
         });
-        
+
         // Initialize performance monitoring
         if (window.PerformanceMonitor) {
             window.performanceMonitor = new PerformanceMonitor(voiceVisualizer);
         }
-        
+
         console.log('🦇 Voice Visualizer integrated into dashboard');
     } catch (error) {
         console.error('🦇 Failed to initialize voice visualizer:', error);
     }
-    
+
     setupVisualizerControls();
 });
 
@@ -205,11 +205,11 @@ function setupVisualizerControls() {
     const micToggle = document.getElementById('mic-toggle');
     const statusDot = document.getElementById('audio-status-dot');
     const statusText = document.getElementById('audio-status-text');
-    
+
     if (!micToggle || !voiceVisualizer) return;
-    
+
     let micActive = false;
-    
+
     micToggle.addEventListener('click', async function() {
         try {
             if (!micActive) {
@@ -220,7 +220,7 @@ function setupVisualizerControls() {
                     micToggle.classList.add('active');
                     statusDot.classList.add('active');
                     statusText.textContent = 'Listening';
-                    
+
                     console.log('🎤 Microphone input started');
                 } else {
                     updateStatus('error', 'Mic Failed');
@@ -232,7 +232,7 @@ function setupVisualizerControls() {
                 micToggle.classList.remove('active');
                 statusDot.classList.remove('active', 'error');
                 statusText.textContent = 'Idle';
-                
+
                 console.log('🔇 Microphone input stopped');
             }
         } catch (error) {
@@ -240,7 +240,7 @@ function setupVisualizerControls() {
             updateStatus('error', 'Audio Error');
         }
     });
-    
+
     // Settings button with performance info
     const settingsBtn = document.getElementById('visualizer-settings');
     if (settingsBtn) {
@@ -256,14 +256,14 @@ function setupVisualizerControls() {
 function updateStatus(state, text) {
     const statusDot = document.getElementById('audio-status-dot');
     const statusText = document.getElementById('audio-status-text');
-    
+
     if (statusDot) {
         statusDot.classList.remove('active', 'error');
         if (state !== 'idle') {
             statusDot.classList.add(state);
         }
     }
-    
+
     if (statusText) {
         statusText.textContent = text;
     }
@@ -295,30 +295,30 @@ window.addEventListener('beforeunload', function() {
 // Command form handling
 document.getElementById('command-form').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
+
     const commandInput = document.getElementById('command-input');
     const command = commandInput.value.trim();
-    
+
     if (!command) return;
-    
+
     // Add command to output
     addToOutput(`🦇 $ ${command}`, 'command');
     addToOutput('🌙 Executing in the shadows...', 'info');
-    
+
     commandInput.value = '';
     commandInput.disabled = true;
-    
+
     try {
         const formData = new FormData();
         formData.append('command', command);
-        
+
         const response = await fetch('/execute', {
             method: 'POST',
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             if (result.output) {
                 addToOutput(result.output, 'success');
@@ -339,23 +339,23 @@ function addToOutput(text, type) {
     const output = document.getElementById('command-output');
     const line = document.createElement('div');
     line.className = `output-line ${type}`;
-    
+
     const prompt = document.createElement('span');
     prompt.className = 'output-prompt';
-    prompt.textContent = type === 'command' ? '🦇' : 
-                        type === 'success' ? '✨' : 
+    prompt.textContent = type === 'command' ? '🦇' :
+                        type === 'success' ? '✨' :
                         type === 'error' ? '💀' : '🌙';
-    
+
     const content = document.createElement('span');
     content.textContent = text;
-    
+
     line.appendChild(prompt);
     line.appendChild(content);
     output.appendChild(line);
-    
+
     // Scroll to bottom
     output.scrollTop = output.scrollHeight;
-    
+
     // Limit output lines
     const lines = output.children;
     if (lines.length > 100) {

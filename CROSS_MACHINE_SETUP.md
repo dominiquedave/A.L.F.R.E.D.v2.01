@@ -53,7 +53,7 @@ Edit `coordinator/agent_discovery.json`:
         "office_network": {
             "hosts": [
                 "192.168.1.10:5001",
-                "192.168.1.11:5001", 
+                "192.168.1.11:5001",
                 "192.168.1.12:5001"
             ]
         }

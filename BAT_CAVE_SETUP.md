@@ -103,7 +103,7 @@ export AGENT_DISCOVERY_HOSTS="localhost:5001,localhost:5002"
 ```bash
 # Interface modes
 --mode voice          # Voice interface only
---mode web            # Web interface only  
+--mode web            # Web interface only
 --mode hybrid         # Both interfaces (default)
 
 # Web server configuration
