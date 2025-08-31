@@ -940,10 +940,12 @@ html, body {
 
 .voice-canvas {
     width: 100%;
+    max-width: 400px;
     height: 250px;
     background: transparent;
     border-radius: 8px;
     cursor: crosshair;
+    margin: 0 auto;
 }
 
 .visualizer-status {
