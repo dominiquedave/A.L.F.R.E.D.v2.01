@@ -41,43 +41,35 @@
         </div>
     </div>
 
-    <!-- Command Terminal -->
-    <div class="dashboard-card command-terminal">
+    <!-- Voice Visualizer Card -->
+    <div class="dashboard-card voice-visualizer-card">
         <div class="card-header">
             <h3 class="card-title">
-                <span class="card-icon">⚡</span>
-                Command Chamber
+                <span class="card-icon">🎵</span>
+                Voice Resonance
             </h3>
-            <div class="terminal-controls">
-                <span class="terminal-dot red"></span>
-                <span class="terminal-dot yellow"></span>
-                <span class="terminal-dot green"></span>
+            <div class="visualizer-controls">
+                <button id="mic-toggle" class="btn-visualizer" title="Toggle microphone input">
+                    <span class="btn-icon">🎤</span>
+                </button>
+                <button id="visualizer-settings" class="btn-visualizer" title="Visualizer settings">
+                    <span class="btn-icon">⚙️</span>
+                </button>
             </div>
         </div>
         <div class="card-content">
-            <form id="command-form" class="command-form">
-                <div class="input-group">
-                    <span class="input-prompt">🦇 $</span>
-                    <input type="text" 
-                           id="command-input" 
-                           name="command" 
-                           placeholder="Enter your dark command..." 
-                           class="command-input"
-                           autocomplete="off">
-                    <button type="submit" class="execute-btn">
-                        <span class="btn-icon">🚀</span>
-                        Execute
-                    </button>
-                </div>
-            </form>
-            <div id="command-output" class="command-output">
-                <div class="output-line welcome">
-                    <span class="output-prompt">🌙</span>
-                    Welcome to the Bat Cave Terminal. Enter commands to control your digital empire.
+            <div class="visualizer-container">
+                <canvas id="voice-visualizer" class="voice-canvas"></canvas>
+                <div class="visualizer-status" id="visualizer-status">
+                    <span class="status-indicator">
+                        <span class="status-dot" id="audio-status-dot"></span>
+                        <span id="audio-status-text">Idle</span>
+                    </span>
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 
 <!-- Agent Details Grid -->
@@ -177,7 +169,127 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{{ url_for('static', path='/js/voice-visualizer.js') }}"></script>
+<script src="{{ url_for('static', path='/js/voice-integration.js') }}"></script>
+<script src="{{ url_for('static', path='/js/performance-monitor.js') }}"></script>
 <script>
+// Voice Visualizer Integration
+let voiceVisualizer = null;
+
+// Initialize visualizer when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        voiceVisualizer = new VoiceVisualizer('voice-visualizer', {
+            segments: 64,
+            primaryColor: '#00FFFF', // --bat-electric
+            centerRadius: 25,
+            maxRadius: 120
+        });
+        
+        // Initialize performance monitoring
+        if (window.PerformanceMonitor) {
+            window.performanceMonitor = new PerformanceMonitor(voiceVisualizer);
+        }
+        
+        console.log('🦇 Voice Visualizer integrated into dashboard');
+    } catch (error) {
+        console.error('🦇 Failed to initialize voice visualizer:', error);
+    }
+    
+    setupVisualizerControls();
+});
+
+function setupVisualizerControls() {
+    const micToggle = document.getElementById('mic-toggle');
+    const statusDot = document.getElementById('audio-status-dot');
+    const statusText = document.getElementById('audio-status-text');
+    
+    if (!micToggle || !voiceVisualizer) return;
+    
+    let micActive = false;
+    
+    micToggle.addEventListener('click', async function() {
+        try {
+            if (!micActive) {
+                // Start microphone input
+                const success = await voiceVisualizer.startMicrophoneInput();
+                if (success) {
+                    micActive = true;
+                    micToggle.classList.add('active');
+                    statusDot.classList.add('active');
+                    statusText.textContent = 'Listening';
+                    
+                    console.log('🎤 Microphone input started');
+                } else {
+                    updateStatus('error', 'Mic Failed');
+                }
+            } else {
+                // Stop microphone input
+                voiceVisualizer.stop();
+                micActive = false;
+                micToggle.classList.remove('active');
+                statusDot.classList.remove('active', 'error');
+                statusText.textContent = 'Idle';
+                
+                console.log('🔇 Microphone input stopped');
+            }
+        } catch (error) {
+            console.error('🦇 Microphone toggle error:', error);
+            updateStatus('error', 'Audio Error');
+        }
+    });
+    
+    // Settings button with performance info
+    const settingsBtn = document.getElementById('visualizer-settings');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', function() {
+            if (window.performanceMonitor) {
+                window.performanceMonitor.logPerformanceReport();
+            }
+            console.log('🔧 Visualizer performance logged to console');
+        });
+    }
+}
+
+function updateStatus(state, text) {
+    const statusDot = document.getElementById('audio-status-dot');
+    const statusText = document.getElementById('audio-status-text');
+    
+    if (statusDot) {
+        statusDot.classList.remove('active', 'error');
+        if (state !== 'idle') {
+            statusDot.classList.add(state);
+        }
+    }
+    
+    if (statusText) {
+        statusText.textContent = text;
+    }
+}
+
+// Integration with voice interface (if available)
+function connectToVoiceInterface() {
+    // This function can be called when voice interface is active
+    // to connect the visualizer to AI voice output
+    if (voiceVisualizer && window.speechSynthesis) {
+        console.log('🦇 Attempting to connect to voice synthesis...');
+        // TODO: Implement connection to voice synthesis audio stream
+    }
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (voiceVisualizer) {
+        voiceVisualizer.destroy();
+    }
+    if (window.performanceMonitor) {
+        window.performanceMonitor.destroy();
+    }
+    if (window.voiceIntegration) {
+        window.voiceIntegration.destroy();
+    }
+});
+
 // Command form handling
 document.getElementById('command-form').addEventListener('submit', async function(e) {
     e.preventDefault();
